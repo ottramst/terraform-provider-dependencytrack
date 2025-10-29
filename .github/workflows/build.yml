@@ -1,0 +1,25 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: The version of Go to use for the action
+        type: string
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          go-version-file: 'go.mod'
+          cache: true
+      - run: make build-ci
+      - uses: actions/upload-artifact@v5
+        with:
+          name: binary
+          path: terraform-provider-dependencytrack

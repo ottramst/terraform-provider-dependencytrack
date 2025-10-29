@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: The version of Go to use for the action
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Terraform Provider Acceptance Tests
+    runs-on: ubuntu-latest
+    env:
+      DEPENDENCYTRACK_ENDPOINT: http://localhost:8081
+      DEPENDENCYTRACK_USERNAME: admin
+      DEPENDENCYTRACK_PASSWORD: admin123
+    services:
+      dtrack-api:
+        image: dependencytrack/apiserver:${{ matrix.dtrack-version }}
+        env:
+          TELEMETRY_SUBMISSION_ENABLED_DEFAULT: false
+        ports:
+          - 8081:8080
+    strategy:
+      fail-fast: false
+      matrix:
+        dtrack-version:
+          - 4.13.5
+        terraform-version:
+          - '1.9.*'
+          - '1.10.*'
+          - '1.11.*'
+          - '1.12.*'
+          - '1.13.*'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          go-version-file: 'go.mod'
+          cache: true
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ matrix.terraform-version }}
+          terraform_wrapper: false
+      - name: Init Dependency Track
+        run: |
+          export INIT_KEY="$(go run scripts/init_dtrack.go)"
+          echo "DEPENDENCYTRACK_API_KEY=$INIT_KEY" >> $GITHUB_ENV
+      - run: go mod download
+      - run: make testacc

@@ -1,0 +1,21 @@
+name: Lint
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: The version of Go to use for the action.
+        type: string
+        required: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest

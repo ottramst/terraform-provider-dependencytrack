@@ -41,7 +41,7 @@ type UserTeamMembershipResource struct {
 type UserTeamMembershipResourceModel struct {
 	ID       types.String `tfsdk:"id"`
 	Username types.String `tfsdk:"username"`
-	TeamUUID types.String `tfsdk:"team_uuid"`
+	Team     types.String `tfsdk:"team"`
 }
 
 // IdentifiableObject represents an object with a UUID field.
@@ -72,7 +72,7 @@ func (r *UserTeamMembershipResource) Schema(ctx context.Context, req resource.Sc
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"team_uuid": schema.StringAttribute{
+			"team": schema.StringAttribute{
 				MarkdownDescription: "The UUID of the team",
 				Required:            true,
 				PlanModifiers: []planmodifier.String{
@@ -118,7 +118,7 @@ func (r *UserTeamMembershipResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	// Parse team UUID
-	teamUUID, err := uuid.Parse(data.TeamUUID.ValueString())
+	teamUUID, err := uuid.Parse(data.Team.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid UUID", fmt.Sprintf("Unable to parse team UUID: %s", err))
 		return
@@ -132,7 +132,7 @@ func (r *UserTeamMembershipResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	// Set the ID as a composite key
-	data.ID = types.StringValue(fmt.Sprintf("%s/%s", data.Username.ValueString(), data.TeamUUID.ValueString()))
+	data.ID = types.StringValue(fmt.Sprintf("%s/%s", data.Username.ValueString(), data.Team.ValueString()))
 
 	tflog.Trace(ctx, "created a user team membership resource")
 
@@ -151,7 +151,7 @@ func (r *UserTeamMembershipResource) Read(ctx context.Context, req resource.Read
 	}
 
 	// Parse team UUID
-	teamUUID, err := uuid.Parse(data.TeamUUID.ValueString())
+	teamUUID, err := uuid.Parse(data.Team.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid UUID", fmt.Sprintf("Unable to parse team UUID: %s", err))
 		return
@@ -184,11 +184,11 @@ func (r *UserTeamMembershipResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	// Since both username and team_uuid require replacement, this should never be called
+	// Since both username and team require replacement, this should never be called
 	// But we'll implement it for completeness
 	resp.Diagnostics.AddError(
 		"Update Not Supported",
-		"Updating a user team membership requires replacing the resource. Both username and team_uuid require replacement.",
+		"Updating a user team membership requires replacing the resource. Both username and team require replacement.",
 	)
 }
 
@@ -203,7 +203,7 @@ func (r *UserTeamMembershipResource) Delete(ctx context.Context, req resource.De
 	}
 
 	// Parse team UUID
-	teamUUID, err := uuid.Parse(data.TeamUUID.ValueString())
+	teamUUID, err := uuid.Parse(data.Team.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid UUID", fmt.Sprintf("Unable to parse team UUID: %s", err))
 		return
@@ -245,7 +245,7 @@ func (r *UserTeamMembershipResource) ImportState(ctx context.Context, req resour
 	// Set the attributes
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("username"), username)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("team_uuid"), teamUUID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("team"), teamUUID)...)
 }
 
 // Helper methods for API calls

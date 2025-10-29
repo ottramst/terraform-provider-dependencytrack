@@ -1,3 +1,14 @@
+## v0.2.1
+
+BREAKING CHANGES:
+
+* resource/user_team_membership: The `team_uuid` attribute has been renamed to `team` for consistency with other resources
+
+ENHANCEMENTS:
+
+* resource/user_team_membership: Added example files for resource usage and import
+* docs: Updated documentation to reflect the `team` attribute naming
+
 ## v0.2.0
 
 FEATURES:
@@ -11,7 +22,7 @@ BREAKING CHANGES:
 ENHANCEMENTS:
 
 * resource/user_team_membership: Supports full CRUD operations for user team memberships
-* resource/user_team_membership: Supports import using the format `username/team_uuid`
+* resource/user_team_membership: Supports import using the format `username/team`
 * resource/user_team_membership: Works with managed, LDAP, and OIDC users
 * tests: Added acceptance tests for `dependencytrack_user_team_membership` resource using API key authentication
 

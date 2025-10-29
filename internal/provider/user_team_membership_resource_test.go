@@ -25,7 +25,7 @@ func TestAccUserTeamMembershipResource(t *testing.T) {
 					),
 					statecheck.ExpectKnownValue(
 						"dependencytrack_user_team_membership.test",
-						tfjsonpath.New("team_uuid"),
+						tfjsonpath.New("team"),
 						knownvalue.NotNull(),
 					),
 					statecheck.ExpectKnownValue(
@@ -60,8 +60,8 @@ resource "dependencytrack_managed_user" "test" {
 }
 
 resource "dependencytrack_user_team_membership" "test" {
-  username  = dependencytrack_managed_user.test.username
-  team_uuid = dependencytrack_team.test.id
+  username = dependencytrack_managed_user.test.username
+  team     = dependencytrack_team.test.id
 }
 `
 }
@@ -109,13 +109,13 @@ resource "dependencytrack_managed_user" "test" {
 }
 
 resource "dependencytrack_user_team_membership" "test1" {
-  username  = dependencytrack_managed_user.test.username
-  team_uuid = dependencytrack_team.test1.id
+  username = dependencytrack_managed_user.test.username
+  team     = dependencytrack_team.test1.id
 }
 
 resource "dependencytrack_user_team_membership" "test2" {
-  username  = dependencytrack_managed_user.test.username
-  team_uuid = dependencytrack_team.test2.id
+  username = dependencytrack_managed_user.test.username
+  team     = dependencytrack_team.test2.id
 }
 `
 }
@@ -169,8 +169,8 @@ resource "dependencytrack_managed_user" "test" {
 }
 
 resource "dependencytrack_user_team_membership" "test" {
-  username  = dependencytrack_managed_user.test.username
-  team_uuid = dependencytrack_team.` + teamRef + `.id
+  username = dependencytrack_managed_user.test.username
+  team     = dependencytrack_team.` + teamRef + `.id
 }
 `
 }

@@ -1,3 +1,27 @@
+## v0.2.0
+
+FEATURES:
+
+* **New Resource:** `dependencytrack_user_team_membership` - Manage user memberships in teams in Dependency-Track
+
+BREAKING CHANGES:
+
+* resource/managed_user: The `fullname` field is now required as mandated by the Dependency-Track API
+
+ENHANCEMENTS:
+
+* resource/user_team_membership: Supports full CRUD operations for user team memberships
+* resource/user_team_membership: Supports import using the format `username/team_uuid`
+* resource/user_team_membership: Works with managed, LDAP, and OIDC users
+* tests: Added acceptance tests for `dependencytrack_user_team_membership` resource using API key authentication
+
+BUG FIXES:
+
+* build: Fixed artifact path in GitHub workflow to use correct binary name `terraform-provider-dependencytrack`
+* build: Updated .gitignore to reflect correct binary name
+* module: Renamed Go module from `terraform-provider-dependency-track` to `terraform-provider-dependencytrack` for consistency
+* docs: Fixed GitHub repository URLs in CHANGELOG.md to use correct repository name
+
 ## v0.1.0
 
 FEATURES:

@@ -10,9 +10,13 @@ This provider includes:
 
 ## Features
 
-- **Team Management**: Create, read, update, and delete teams in Dependency-Track
-- **User Management**: Create, read, update, and delete managed users in Dependency-Track
-- **Example Resources**: Template resources, data sources, functions, and ephemeral resources for reference
+- **Team Management**: Manage teams, team permissions, and team API keys
+- **User Management**: Manage managed users, user permissions, and user team memberships
+- **Project Management**: Manage projects and project ACL mappings
+- **Policy Management**: Manage policies with conditions
+- **Configuration**: Manage Dependency-Track configuration properties
+
+For detailed documentation on all resources and data sources, see the [docs/](docs/) directory.
 
 ## Requirements
 
@@ -43,42 +47,13 @@ go mod tidy
 
 Then commit the changes to `go.mod` and `go.sum`.
 
-## Using the provider
+## Using the Provider
 
-```hcl
-terraform {
-  required_providers {
-    dependencytrack = {
-      source = "ottramst/dependencytrack"
-    }
-  }
-}
-
-provider "dependencytrack" {
-  endpoint = "https://dtrack.example.com"
-  api_key  = var.dtrack_api_key
-}
-
-# Create a team
-resource "dependencytrack_team" "security" {
-  name = "Security Team"
-}
-
-# Query an existing team
-data "dependencytrack_team" "existing" {
-  uuid = "00000000-0000-0000-0000-000000000000"
-}
-
-# Create a user
-resource "dependencytrack_user" "john" {
-  username         = "johndoe"
-  fullname         = "John Doe"
-  email            = "john.doe@example.com"
-  new_password     = "SecureP@ssw0rd123"
-  confirm_password = "SecureP@ssw0rd123"
-  type             = "managed"
-}
-```
+For usage examples and comprehensive documentation, please refer to the:
+- [Provider documentation](docs/index.md) for configuration details
+- [Resource documentation](docs/resources/) for available resources
+- [Data source documentation](docs/data-sources/) for available data sources
+- [Example configurations](examples/) for complete working examples
 
 ## Developing the Provider
 

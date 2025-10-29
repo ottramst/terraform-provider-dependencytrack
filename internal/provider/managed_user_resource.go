@@ -51,7 +51,7 @@ type ManagedUserResourceModel struct {
 // ManagedUser represents the API structure for managed users.
 type ManagedUser struct {
 	Username            string `json:"username"`
-	Fullname            string `json:"fullname,omitempty"`
+	Fullname            string `json:"fullname"`
 	Email               string `json:"email,omitempty"`
 	NewPassword         string `json:"newPassword,omitempty"`
 	ConfirmPassword     string `json:"confirmPassword,omitempty"`
@@ -85,7 +85,7 @@ func (r *ManagedUserResource) Schema(ctx context.Context, req resource.SchemaReq
 			},
 			"fullname": schema.StringAttribute{
 				MarkdownDescription: "The full name of the user",
-				Optional:            true,
+				Required:            true,
 			},
 			"email": schema.StringAttribute{
 				MarkdownDescription: "The email address of the user",

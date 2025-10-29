@@ -30,13 +30,13 @@ resource "dependencytrack_managed_user" "example" {
 
 ### Required
 
+- `fullname` (String) The full name of the user
 - `username` (String) The username of the user
 
 ### Optional
 
 - `email` (String) The email address of the user
 - `force_password_change` (Boolean) Whether to force the user to change password on next login
-- `fullname` (String) The full name of the user
 - `non_expiry_password` (Boolean) Whether the password never expires
 - `password` (String, Sensitive) The password for the user (only used during create/update)
 - `suspended` (Boolean) Whether the user account is suspended

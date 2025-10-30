@@ -1,3 +1,14 @@
+## v0.2.2
+
+BUG FIXES:
+
+* resource/config_property: Fixed "Provider produced inconsistent result after apply" error when managing `ENCRYPTEDSTRING` type properties. The provider now correctly handles the API's `HiddenDecryptedPropertyPlaceholder` response and preserves the configured value in state
+
+ENHANCEMENTS:
+
+* tests: Added acceptance test `TestAccConfigPropertyResource_EncryptedString_APIKey` to verify encrypted config property handling
+* docs: Removed read-only fields `include_children` and `global` from `dependencytrack_policy` resource example
+
 ## v0.2.1
 
 BREAKING CHANGES:
@@ -25,13 +36,6 @@ ENHANCEMENTS:
 * resource/user_team_membership: Supports import using the format `username/team`
 * resource/user_team_membership: Works with managed, LDAP, and OIDC users
 * tests: Added acceptance tests for `dependencytrack_user_team_membership` resource using API key authentication
-
-BUG FIXES:
-
-* build: Fixed artifact path in GitHub workflow to use correct binary name `terraform-provider-dependencytrack`
-* build: Updated .gitignore to reflect correct binary name
-* module: Renamed Go module from `terraform-provider-dependency-track` to `terraform-provider-dependencytrack` for consistency
-* docs: Fixed GitHub repository URLs in CHANGELOG.md to use correct repository name
 
 ## v0.1.0
 

@@ -1,9 +1,7 @@
 resource "dependencytrack_policy" "example" {
-  name             = "Critical Vulnerabilities"
-  operator         = "ALL"
-  violation_state  = "FAIL"
-  include_children = true
-  global           = true
+  name            = "Critical Vulnerabilities"
+  operator        = "ALL"
+  violation_state = "FAIL"
 
   conditions = [
     {

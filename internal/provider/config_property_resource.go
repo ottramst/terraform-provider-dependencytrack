@@ -153,7 +153,16 @@ func (r *ConfigPropertyResource) Create(ctx context.Context, req resource.Create
 
 	// Set the ID and all attributes in state
 	data.ID = types.StringValue(fmt.Sprintf("%s/%s", updatedProp.GroupName, updatedProp.Name))
-	data.Value = types.StringValue(updatedProp.Value)
+
+	// For encrypted properties, the API returns a placeholder instead of the actual value
+	// We need to preserve the configured value in state
+	if updatedProp.Type == "ENCRYPTEDSTRING" && updatedProp.Value == "HiddenDecryptedPropertyPlaceholder" {
+		// Keep the configured value that was set in data.Value
+		// Don't update it with the placeholder from the API
+	} else {
+		data.Value = types.StringValue(updatedProp.Value)
+	}
+
 	data.Type = types.StringValue(updatedProp.Type)
 	data.Description = types.StringValue(updatedProp.Description)
 
@@ -181,7 +190,15 @@ func (r *ConfigPropertyResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	data.Value = types.StringValue(prop.Value)
+	// For encrypted properties, the API returns a placeholder instead of the actual value
+	// We need to preserve the existing state value
+	if prop.Type == "ENCRYPTEDSTRING" && prop.Value == "HiddenDecryptedPropertyPlaceholder" {
+		// Keep the existing value from state (data.Value)
+		// Don't update it with the placeholder from the API
+	} else {
+		data.Value = types.StringValue(prop.Value)
+	}
+
 	data.Type = types.StringValue(prop.Type)
 	data.Description = types.StringValue(prop.Description)
 
@@ -217,7 +234,15 @@ func (r *ConfigPropertyResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 
-	data.Value = types.StringValue(updatedProp.Value)
+	// For encrypted properties, the API returns a placeholder instead of the actual value
+	// We need to preserve the configured value in state
+	if updatedProp.Type == "ENCRYPTEDSTRING" && updatedProp.Value == "HiddenDecryptedPropertyPlaceholder" {
+		// Keep the configured value that was set in data.Value
+		// Don't update it with the placeholder from the API
+	} else {
+		data.Value = types.StringValue(updatedProp.Value)
+	}
+
 	data.Type = types.StringValue(updatedProp.Type)
 	data.Description = types.StringValue(updatedProp.Description)
 

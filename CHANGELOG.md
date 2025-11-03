@@ -1,3 +1,16 @@
+## v0.3.0
+
+FEATURES:
+
+* **New Resource:** `dependencytrack_project_policy` - Manage the assignment of policies to projects in Dependency-Track
+
+ENHANCEMENTS:
+
+* resource/project_policy: Supports full CRUD operations for project policy assignments
+* resource/project_policy: Supports import using the format `policy_uuid/project_uuid`
+* tests: Added acceptance tests for `dependencytrack_project_policy` resource using API key authentication
+* docs: Added documentation with examples for the `dependencytrack_project_policy` resource
+
 ## v0.2.2
 
 BUG FIXES:

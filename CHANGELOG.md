@@ -8,10 +8,6 @@ FEATURES:
 * **New Resource:** `dependencytrack_notification_rule_project` - Associate projects with notification rules
 * **New Resource:** `dependencytrack_notification_rule_team` - Associate teams with notification rules
 
-BREAKING CHANGES:
-
-* resource/notification_rule: The `projects` and `teams` attributes are now read-only. Use the new `dependencytrack_notification_rule_project` and `dependencytrack_notification_rule_team` resources to manage these associations
-
 ENHANCEMENTS:
 
 * docs: Added documentation with examples for the `dependencytrack_notification_publisher` resource

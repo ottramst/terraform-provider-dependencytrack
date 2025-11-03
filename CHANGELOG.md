@@ -3,13 +3,33 @@
 FEATURES:
 
 * **New Resource:** `dependencytrack_project_policy` - Manage the assignment of policies to projects in Dependency-Track
+* **New Resource:** `dependencytrack_notification_publisher` - Manage notification publishers in Dependency-Track
+* **New Resource:** `dependencytrack_notification_rule` - Manage notification rules in Dependency-Track
+* **New Resource:** `dependencytrack_notification_rule_project` - Associate projects with notification rules
+* **New Resource:** `dependencytrack_notification_rule_team` - Associate teams with notification rules
 
 ENHANCEMENTS:
 
+* docs: Added documentation with examples for the `dependencytrack_notification_publisher` resource
+* docs: Added documentation with examples for the `dependencytrack_notification_rule_project` resource
+* docs: Added documentation with examples for the `dependencytrack_notification_rule_team` resource
+* docs: Added documentation with examples for the `dependencytrack_notification_rule` resource
+* docs: Added documentation with examples for the `dependencytrack_project_policy` resource
+* resource/notification_publisher: Supports all notification publisher types (Webhook, Email, Console, etc.)
+* resource/notification_publisher: Supports full CRUD operations for notification publishers
+* resource/notification_publisher: Supports import using UUID
+* resource/notification_rule: Supports all notification scopes (PORTFOLIO, SYSTEM) and levels (INFORMATIONAL, WARNING, ERROR)
+* resource/notification_rule: Supports full CRUD operations for notification rules
+* resource/notification_rule: Supports import using UUID
+* resource/notification_rule_project: Supports associating projects with PORTFOLIO-scoped notification rules
+* resource/notification_rule_project: Supports import using the format `rule_uuid/project_uuid`
+* resource/notification_rule_team: Supports associating teams with EMAIL-publisher notification rules
+* resource/notification_rule_team: Supports import using the format `rule_uuid/team_uuid`
 * resource/project_policy: Supports full CRUD operations for project policy assignments
 * resource/project_policy: Supports import using the format `policy_uuid/project_uuid`
+* tests: Added acceptance tests for `dependencytrack_notification_publisher` resource using API key authentication
+* tests: Added acceptance tests for `dependencytrack_notification_rule` resource using API key authentication
 * tests: Added acceptance tests for `dependencytrack_project_policy` resource using API key authentication
-* docs: Added documentation with examples for the `dependencytrack_project_policy` resource
 
 ## v0.2.2
 

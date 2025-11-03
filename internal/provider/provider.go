@@ -215,6 +215,7 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewACLMappingResource,
 		NewTeamAPIKeyResource,
 		NewUserTeamMembershipResource,
+		NewProjectPolicyResource,
 	}
 }
 

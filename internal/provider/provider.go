@@ -216,6 +216,10 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewTeamAPIKeyResource,
 		NewUserTeamMembershipResource,
 		NewProjectPolicyResource,
+		NewNotificationPublisherResource,
+		NewNotificationRuleResource,
+		NewNotificationRuleProjectResource,
+		NewNotificationRuleTeamResource,
 	}
 }
 

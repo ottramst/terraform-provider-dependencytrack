@@ -1,0 +1,1 @@
+terraform import dependencytrack_notification_rule_project.example "rule_uuid/project_uuid"

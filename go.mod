@@ -3,7 +3,7 @@ module github.com/ottramst/terraform-provider-dependencytrack
 go 1.24.0
 
 require (
-	github.com/DependencyTrack/client-go v0.17.0
+	github.com/DependencyTrack/client-go v0.18.0
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/terraform-plugin-framework v1.16.1
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0

@@ -1,3 +1,14 @@
+## v0.4.0
+
+FEATURES:
+
+* **New Data Source:** `dependencytrack_notification_publisher` - Look up notification publishers by UUID or name
+
+ENHANCEMENTS:
+
+* docs: Added documentation with examples for the `dependencytrack_notification_publisher` data source
+* tests: Added acceptance tests for `dependencytrack_notification_publisher` data source (by UUID, by name, and both)
+
 ## v0.3.0
 
 FEATURES:

@@ -36,7 +36,7 @@ resource "dependencytrack_notification_rule" "vulnerability_alerts" {
   log_successful_publish = false
 }
 
-# Notification rule for specific projects
+# Notification rule with project association (use separate resource)
 resource "dependencytrack_project" "web_app" {
   name    = "Web Application"
   version = "1.0.0"
@@ -51,31 +51,11 @@ resource "dependencytrack_notification_rule" "project_specific" {
     "NEW_VULNERABILITY",
     "POLICY_VIOLATION"
   ]
-
-  projects = [
-    dependencytrack_project.web_app.id
-  ]
-
-  message = "Alert for project: {{project.name}}"
 }
 
-# Notification rule for specific teams
-resource "dependencytrack_team" "security_team" {
-  name = "Security Team"
-}
-
-resource "dependencytrack_notification_rule" "team_notifications" {
-  name      = "Security Team Alerts"
-  scope     = "SYSTEM"
-  publisher = dependencytrack_notification_publisher.slack.id
-
-  notify_on = [
-    "NEW_VULNERABILITY"
-  ]
-
-  teams = [
-    dependencytrack_team.security_team.id
-  ]
+resource "dependencytrack_notification_rule_project" "web_app" {
+  rule    = dependencytrack_notification_rule.project_specific.id
+  project = dependencytrack_project.web_app.id
 }
 
 # System-level notification rule

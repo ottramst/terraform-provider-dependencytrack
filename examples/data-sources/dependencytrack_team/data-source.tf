@@ -1,6 +1,6 @@
-# Look up a team by UUID
+# Look up a team by ID (UUID)
 data "dependencytrack_team" "by_uuid" {
-  uuid = "00000000-0000-0000-0000-000000000000"
+  id = "00000000-0000-0000-0000-000000000000"
 }
 
 # Look up a team by name

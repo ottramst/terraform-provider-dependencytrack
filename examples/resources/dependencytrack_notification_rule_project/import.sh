@@ -1,1 +1,2 @@
-terraform import dependencytrack_notification_rule_project.example "rule_uuid/project_uuid"
+# Notification rule project associations can be imported using the format rule_uuid/project_uuid
+terraform import dependencytrack_notification_rule_project.example 00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002

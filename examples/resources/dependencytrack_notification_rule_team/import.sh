@@ -1,1 +1,2 @@
-terraform import dependencytrack_notification_rule_team.example "rule_uuid/team_uuid"
+# Notification rule team associations can be imported using the format rule_uuid/team_uuid
+terraform import dependencytrack_notification_rule_team.example 00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002

@@ -2,7 +2,7 @@ resource "dependencytrack_notification_rule" "example" {
   name      = "Example Rule"
   scope     = "PORTFOLIO"
   notify_on = ["NEW_VULNERABILITY"]
-  publisher = dependencytrack_notification_publisher.email.uuid
+  publisher = dependencytrack_notification_publisher.email.id
 }
 
 resource "dependencytrack_team" "example" {
@@ -10,6 +10,6 @@ resource "dependencytrack_team" "example" {
 }
 
 resource "dependencytrack_notification_rule_team" "example" {
-  rule_uuid = dependencytrack_notification_rule.example.uuid
-  team_uuid = dependencytrack_team.example.uuid
+  rule = dependencytrack_notification_rule.example.id
+  team = dependencytrack_team.example.id
 }

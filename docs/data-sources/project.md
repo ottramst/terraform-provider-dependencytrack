@@ -13,9 +13,9 @@ Retrieves information about a Dependency-Track project. You can look up a projec
 ## Example Usage
 
 ```terraform
-# Look up a project by UUID
+# Look up a project by ID (UUID)
 data "dependencytrack_project" "by_uuid" {
-  uuid = "00000000-0000-0000-0000-000000000000"
+  id = "00000000-0000-0000-0000-000000000000"
 }
 
 # Look up a project by name and version

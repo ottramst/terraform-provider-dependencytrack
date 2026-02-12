@@ -17,7 +17,7 @@ resource "dependencytrack_notification_rule" "example" {
   name      = "Example Rule"
   scope     = "PORTFOLIO"
   notify_on = ["NEW_VULNERABILITY"]
-  publisher = dependencytrack_notification_publisher.email.uuid
+  publisher = dependencytrack_notification_publisher.email.id
 }
 
 resource "dependencytrack_team" "example" {
@@ -25,8 +25,8 @@ resource "dependencytrack_team" "example" {
 }
 
 resource "dependencytrack_notification_rule_team" "example" {
-  rule_uuid = dependencytrack_notification_rule.example.uuid
-  team_uuid = dependencytrack_team.example.uuid
+  rule = dependencytrack_notification_rule.example.id
+  team = dependencytrack_team.example.id
 }
 ```
 
@@ -49,5 +49,6 @@ Import is supported using the following syntax:
 The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
-terraform import dependencytrack_notification_rule_team.example "rule_uuid/team_uuid"
+# Notification rule team associations can be imported using the format rule_uuid/team_uuid
+terraform import dependencytrack_notification_rule_team.example 00000000-0000-0000-0000-000000000001/00000000-0000-0000-0000-000000000002
 ```

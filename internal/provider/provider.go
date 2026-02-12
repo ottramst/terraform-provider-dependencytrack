@@ -235,6 +235,7 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewProjectDataSource,
 		NewPolicyDataSource,
 		NewTeamAPIKeysDataSource,
+		NewNotificationPublisherDataSource,
 	}
 }
 

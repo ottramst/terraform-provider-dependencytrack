@@ -1,3 +1,9 @@
+## v0.4.1
+
+BUG FIXES:
+
+* resource/notification_rule: Fixed "Provider produced inconsistent result after apply" error when setting `publisher_config`. The API's PUT (create) endpoint ignores `publisher_config`, so the provider now includes it in the follow-up POST update and preserves the configured value in state
+
 ## v0.4.0
 
 FEATURES:

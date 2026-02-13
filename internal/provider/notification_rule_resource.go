@@ -258,6 +258,7 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	// - enabled: always returns true (default: true)
 	// - notifyChildren: always returns true (default: true)
 	// - logSuccessfulPublish: always returns false (default: false)
+	// - publisherConfig: returns empty
 	// We need to immediately follow up with a POST (update) if any of these differ from defaults.
 	needsUpdate := false
 	if len(rule.NotifyOn) > 0 {
@@ -275,6 +276,10 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 	if rule.LogSuccessfulPublish {
 		needsUpdate = true
 		createdRule.LogSuccessfulPublish = rule.LogSuccessfulPublish
+	}
+	if rule.PublisherConfig != "" {
+		needsUpdate = true
+		createdRule.PublisherConfig = rule.PublisherConfig
 	}
 
 	if needsUpdate {
@@ -476,7 +481,7 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 
 	if rule.PublisherConfig != "" {
 		model.PublisherConfig = types.StringValue(rule.PublisherConfig)
-	} else {
+	} else if model.PublisherConfig.IsNull() {
 		model.PublisherConfig = types.StringNull()
 	}
 

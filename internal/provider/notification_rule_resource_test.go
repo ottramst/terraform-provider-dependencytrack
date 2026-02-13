@@ -219,6 +219,69 @@ func TestAccNotificationRuleResource_WithTeams(t *testing.T) {
 	})
 }
 
+func TestAccNotificationRuleResource_WithPublisherConfig(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// Create with publisher_config
+			{
+				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(`{"destination":"https://example.com/webhook"}`),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_rule.test_publisher_config",
+						tfjsonpath.New("name"),
+						knownvalue.StringExact("Notification Rule with Publisher Config"),
+					),
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_rule.test_publisher_config",
+						tfjsonpath.New("publisher_config"),
+						knownvalue.StringExact(`{"destination":"https://example.com/webhook"}`),
+					),
+				},
+			},
+			// ImportState testing
+			{
+				ResourceName:      "dependencytrack_notification_rule.test_publisher_config",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			// Update publisher_config
+			{
+				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(`{"destination":"https://example.com/webhook-updated"}`),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_rule.test_publisher_config",
+						tfjsonpath.New("publisher_config"),
+						knownvalue.StringExact(`{"destination":"https://example.com/webhook-updated"}`),
+					),
+				},
+			},
+		},
+	})
+}
+
+func testAccNotificationRuleResourceConfigWithPublisherConfig(publisherConfig string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
+data "dependencytrack_notification_publisher" "webhook" {
+  name = "Slack"
+}
+
+resource "dependencytrack_notification_rule" "test_publisher_config" {
+  name              = "Notification Rule with Publisher Config"
+  scope             = "PORTFOLIO"
+  notification_level = "ERROR"
+  publisher         = data.dependencytrack_notification_publisher.webhook.id
+
+  notify_on = [
+    "NEW_VULNERABILITY",
+  ]
+
+  publisher_config = %q
+}
+`, publisherConfig)
+}
+
 func testAccNotificationRuleResourceConfigWithTeams(suffix string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test_teams" {

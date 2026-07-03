@@ -173,8 +173,6 @@ func testAccEmailPublisherClass(t *testing.T) string {
 
 // testAccSkipUnlessV4 skips the current test unless the server under test is
 // running Dependency-Track 4.x.
-//
-//nolint:unused // not yet called; v4-only acceptance tests land in a later task
 func testAccSkipUnlessV4(t *testing.T) {
 	t.Helper()
 

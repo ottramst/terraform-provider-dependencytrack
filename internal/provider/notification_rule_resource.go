@@ -150,6 +150,15 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "Publisher-specific configuration (JSON string)",
 				Optional:            true,
 				Computed:            true,
+				// Carry the prior value into update plans when the config is
+				// null: DT v5 populates the publisher's default config on rule
+				// create and rejects updates that omit publisherConfig when
+				// the publisher requires configuration, so dropping the value
+				// (the framework's default "unknown" for computed attributes)
+				// would break every subsequent update.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -272,11 +281,18 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 
 	if needsUpdate {
 		tflog.Debug(ctx, "Following up with update to set fields ignored by PUT endpoint due to API limitation")
-		createdRule, err = r.updateRule(ctx, createdRule)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification rule fields, got error: %s", err))
+		updatedRule, updateErr := r.updateRule(ctx, createdRule)
+		if updateErr != nil {
+			// The rule already exists server-side at this point. Persist it to
+			// state (Terraform will mark it tainted) instead of leaking it;
+			// DT v5 enforces unique rule names, so a leaked rule would make
+			// every subsequent apply fail with a duplicate-name error.
+			resp.Diagnostics.Append(r.updateModelFromAPI(ctx, &data, &createdRule)...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification rule fields, got error: %s", updateErr))
 			return
 		}
+		createdRule = updatedRule
 	}
 
 	// Update model with response from create/update
@@ -469,7 +485,18 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 
 	switch {
 	case rule.PublisherConfig != "":
-		model.PublisherConfig = types.StringValue(rule.PublisherConfig)
+		// DT v5 stores publisherConfig as JSONB and re-serializes it on list
+		// reads (e.g. {"a":1} comes back as {"a": 1}), and it also fills in
+		// the publisher extension's default config when none was provided, so
+		// byte-for-byte fidelity with the configured string can't be assumed.
+		// Keep the existing planned/state value when it is semantically the
+		// same JSON (avoiding perpetual whitespace-only drift), and otherwise
+		// store the API value in canonical form so the create/update and
+		// read/import paths converge on identical state.
+		if model.PublisherConfig.IsNull() || model.PublisherConfig.IsUnknown() ||
+			!jsonStringsEquivalent(model.PublisherConfig.ValueString(), rule.PublisherConfig) {
+			model.PublisherConfig = types.StringValue(canonicalJSONString(rule.PublisherConfig))
+		}
 	case model.PublisherConfig.IsUnknown():
 		// DT >= 4.14 no longer echoes publisherConfig in create/update
 		// responses (and may omit it from list reads), so the API value comes

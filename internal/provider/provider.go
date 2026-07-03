@@ -273,6 +273,7 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewNotificationRuleProjectResource,
 		NewNotificationRuleTeamResource,
 		NewRepositoryResource,
+		NewOIDCGroupResource,
 	}
 }
 
@@ -290,6 +291,7 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewTeamAPIKeysDataSource,
 		NewNotificationPublisherDataSource,
 		NewRepositoriesDataSource,
+		NewOIDCGroupDataSource,
 	}
 }
 

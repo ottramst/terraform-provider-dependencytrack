@@ -1,0 +1,43 @@
+services:
+  apiserver:
+    image: ghcr.io/dependencytrack/apiserver:5.0.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DT_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dtrack
+      DT_DATASOURCE_USERNAME: dtrack
+      DT_DATASOURCE_PASSWORD: dtrack
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/dependencytrack/frontend:5.0.2
+    environment:
+      API_BASE_URL: http://localhost:8081
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: dtrack
+      POSTGRES_USER: dtrack
+      POSTGRES_PASSWORD: dtrack
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtrack"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    volumes:
+      # postgres 18's image stores data in a version-namespaced subdirectory
+      # and refuses to start if something is mounted directly at
+      # /var/lib/postgresql/data (to avoid silent data loss across major
+      # version upgrades). Mount the parent directory instead.
+      # See https://github.com/docker-library/postgres/pull/1259
+      - postgres-data-v5:/var/lib/postgresql
+
+volumes:
+  postgres-data-v5: {}

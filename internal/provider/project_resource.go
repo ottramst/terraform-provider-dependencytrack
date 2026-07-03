@@ -88,7 +88,7 @@ func (r *ProjectResource) Schema(ctx context.Context, req resource.SchemaRequest
 			"author": schema.StringAttribute{
 				Optional:            true,
 				Computed:            true,
-				MarkdownDescription: "The author of the project",
+				MarkdownDescription: "The author of the project. On Dependency-Track v5 this deprecated field is accepted on write but never returned on read (v5 tracks authors as a list internally), so the provider preserves the configured value in state on v5.",
 			},
 			"classifier": schema.StringAttribute{
 				Optional:            true,
@@ -233,7 +233,19 @@ func (r *ProjectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	data.Description = types.StringValue(project.Description)
 	data.Group = types.StringValue(project.Group)
 	data.Publisher = types.StringValue(project.Publisher)
-	data.Author = types.StringValue(project.Author)
+	// Dependency-Track v5 deprecated the top-level author string: it is accepted
+	// on write but never returned on read (v5 tracks authors as a list). To
+	// avoid a perpetual diff, keep the value already in state; normalize an
+	// unset value (e.g. right after import, where only the id is known) to the
+	// empty string so it resolves deterministically. v4 returns author
+	// normally, so honor whatever the server reports there (including an
+	// intentional clear to empty).
+	switch {
+	case !r.data.IsV5():
+		data.Author = types.StringValue(project.Author)
+	case data.Author.IsNull() || data.Author.IsUnknown():
+		data.Author = types.StringValue("")
+	}
 	data.Classifier = types.StringValue(project.Classifier)
 	data.Active = types.BoolValue(project.Active)
 	data.CPE = types.StringValue(project.CPE)

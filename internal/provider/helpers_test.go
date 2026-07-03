@@ -2,6 +2,38 @@ package provider
 
 import "testing"
 
+func TestParseCompositeID3(t *testing.T) {
+	tests := []struct {
+		name                   string
+		id                     string
+		wantP1, wantP2, wantP3 string
+		wantErr                bool
+	}{
+		{"three parts", "a/b/c", "a", "b", "c", false},
+		{"uuid group name", "00000000-0000-0000-0000-000000000001/general/color", "00000000-0000-0000-0000-000000000001", "general", "color", false},
+		{"empty parts allowed", "//", "", "", "", false},
+		{"too few parts", "a/b", "", "", "", true},
+		{"too many parts", "a/b/c/d", "", "", "", true},
+		{"single part", "a", "", "", "", true},
+		{"empty string", "", "", "", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p1, p2, p3, err := parseCompositeID3(tt.id, "project", "group", "name")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseCompositeID3(%q) error = %v, wantErr %v", tt.id, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if p1 != tt.wantP1 || p2 != tt.wantP2 || p3 != tt.wantP3 {
+				t.Errorf("parseCompositeID3(%q) = (%q, %q, %q), want (%q, %q, %q)", tt.id, p1, p2, p3, tt.wantP1, tt.wantP2, tt.wantP3)
+			}
+		})
+	}
+}
+
 func TestJSONStringsEquivalent(t *testing.T) {
 	tests := []struct {
 		name string

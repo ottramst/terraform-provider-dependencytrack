@@ -1,15 +1,11 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -30,11 +26,7 @@ func NewUserTeamMembershipResource() resource.Resource {
 
 // UserTeamMembershipResource defines the resource implementation.
 type UserTeamMembershipResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // UserTeamMembershipResourceModel describes the resource data model.
@@ -100,11 +92,7 @@ func (r *UserTeamMembershipResource) Configure(ctx context.Context, req resource
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *UserTeamMembershipResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -251,49 +239,20 @@ func (r *UserTeamMembershipResource) ImportState(ctx context.Context, req resour
 // Helper methods for API calls
 
 func (r *UserTeamMembershipResource) addTeamToUser(ctx context.Context, username string, teamUUID uuid.UUID) error {
-	url := fmt.Sprintf("%s/api/v1/user/%s/membership", r.baseURL, username)
-
+	apiPath := fmt.Sprintf("/api/v1/user/%s/membership", username)
 	identifiable := IdentifiableObject{UUID: teamUUID}
-	body, err := json.Marshal(identifiable)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
+	return r.data.API().Do(ctx, http.MethodPost, apiPath, identifiable, nil)
 }
 
 func (r *UserTeamMembershipResource) removeTeamFromUser(ctx context.Context, username string, teamUUID uuid.UUID) error {
-	url := fmt.Sprintf("%s/api/v1/user/%s/membership", r.baseURL, username)
-
+	apiPath := fmt.Sprintf("/api/v1/user/%s/membership", username)
 	identifiable := IdentifiableObject{UUID: teamUUID}
-	body, err := json.Marshal(identifiable)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
+	return r.data.API().Do(ctx, http.MethodDelete, apiPath, identifiable, nil)
 }
 
 func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, username string, teamUUID uuid.UUID) (bool, error) {
 	// Get the user's teams and check if the team is in the list
 	// We'll use the managed user endpoint to get the user details
-	url := fmt.Sprintf("%s/api/v1/user/managed", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return false, err
-	}
-
 	var users []struct {
 		Username string `json:"username"`
 		Teams    []struct {
@@ -301,7 +260,7 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 		} `json:"teams"`
 	}
 
-	if err := r.doRequest(req, &users); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
 		return false, err
 	}
 
@@ -320,12 +279,6 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 
 	// User not found - might be LDAP or OIDC user
 	// Try LDAP users endpoint
-	url = fmt.Sprintf("%s/api/v1/user/ldap", r.baseURL)
-	req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return false, err
-	}
-
 	var ldapUsers []struct {
 		Username string `json:"username"`
 		Teams    []struct {
@@ -333,7 +286,7 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 		} `json:"teams"`
 	}
 
-	if err := r.doRequest(req, &ldapUsers); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/ldap", nil, &ldapUsers); err != nil {
 		// LDAP might not be configured, continue to OIDC
 		tflog.Debug(ctx, "Failed to fetch LDAP users, trying OIDC", map[string]interface{}{"error": err.Error()})
 	} else {
@@ -350,12 +303,6 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 	}
 
 	// Try OIDC users endpoint
-	url = fmt.Sprintf("%s/api/v1/user/oidc", r.baseURL)
-	req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return false, err
-	}
-
 	var oidcUsers []struct {
 		Username string `json:"username"`
 		Teams    []struct {
@@ -363,7 +310,7 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 		} `json:"teams"`
 	}
 
-	if err := r.doRequest(req, &oidcUsers); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/oidc", nil, &oidcUsers); err != nil {
 		// OIDC might not be configured
 		tflog.Debug(ctx, "Failed to fetch OIDC users", map[string]interface{}{"error": err.Error()})
 		return false, fmt.Errorf("user not found in managed, LDAP, or OIDC users: %s", username)
@@ -381,32 +328,4 @@ func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, usern
 	}
 
 	return false, fmt.Errorf("user not found: %s", username)
-}
-
-func (r *UserTeamMembershipResource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
 }

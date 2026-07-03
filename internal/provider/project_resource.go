@@ -25,7 +25,7 @@ func NewProjectResource() resource.Resource {
 
 // ProjectResource defines the resource implementation.
 type ProjectResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ProjectResourceModel describes the resource data model.
@@ -139,7 +139,7 @@ func (r *ProjectResource) Configure(ctx context.Context, req resource.ConfigureR
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -174,7 +174,7 @@ func (r *ProjectResource) Create(ctx context.Context, req resource.CreateRequest
 		project.ParentRef = &dtrack.ParentRef{UUID: parentUUID}
 	}
 
-	createdProject, err := r.client.Project.Create(ctx, project)
+	createdProject, err := r.data.Client.Project.Create(ctx, project)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create project, got error: %s", err))
 		return
@@ -215,7 +215,7 @@ func (r *ProjectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	project, err := r.client.Project.Get(ctx, projectUUID)
+	project, err := r.data.Client.Project.Get(ctx, projectUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read project, got error: %s", err))
 		return
@@ -288,7 +288,7 @@ func (r *ProjectResource) Update(ctx context.Context, req resource.UpdateRequest
 		project.ParentRef = &dtrack.ParentRef{UUID: parentUUID}
 	}
 
-	updatedProject, err := r.client.Project.Update(ctx, project)
+	updatedProject, err := r.data.Client.Project.Update(ctx, project)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update project, got error: %s", err))
 		return
@@ -329,7 +329,7 @@ func (r *ProjectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	err = r.client.Project.Delete(ctx, projectUUID)
+	err = r.data.Client.Project.Delete(ctx, projectUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete project, got error: %s", err))
 		return

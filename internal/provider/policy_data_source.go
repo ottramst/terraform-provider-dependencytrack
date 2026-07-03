@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -21,7 +20,7 @@ func NewPolicyDataSource() datasource.DataSource {
 
 // PolicyDataSource defines the data source implementation.
 type PolicyDataSource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // PolicyDataSourceModel describes the data source data model.
@@ -116,7 +115,7 @@ func (d *PolicyDataSource) Configure(ctx context.Context, req datasource.Configu
 		return
 	}
 
-	d.client = data.Client
+	d.data = data
 }
 
 func (d *PolicyDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -134,7 +133,7 @@ func (d *PolicyDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 		return
 	}
 
-	policy, err := d.client.Policy.Get(ctx, policyUUID)
+	policy, err := d.data.Client.Policy.Get(ctx, policyUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy, got error: %s", err))
 		return

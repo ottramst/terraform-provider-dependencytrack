@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -26,11 +25,7 @@ func NewNotificationRuleTeamResource() resource.Resource {
 
 // NotificationRuleTeamResource defines the resource implementation.
 type NotificationRuleTeamResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // NotificationRuleTeamResourceModel describes the resource data model.
@@ -89,11 +84,7 @@ func (r *NotificationRuleTeamResource) Configure(ctx context.Context, req resour
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *NotificationRuleTeamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -199,7 +190,7 @@ func (r *NotificationRuleTeamResource) Delete(ctx context.Context, req resource.
 	if err := r.removeTeamFromRule(ctx, ruleUUID, teamUUID); err != nil {
 		// If we get a 404, it means the association (or the rule/team itself) no longer exists.
 		// This is the desired end state, so we can consider the deletion successful.
-		if isNotFoundError(err) {
+		if isNotFound(err) {
 			tflog.Debug(ctx, "notification rule or team already deleted, considering team association deletion successful")
 		} else {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove team from notification rule, got error: %s", err))
@@ -226,38 +217,19 @@ func (r *NotificationRuleTeamResource) ImportState(ctx context.Context, req reso
 // Helper methods
 
 func (r *NotificationRuleTeamResource) addTeamToRule(ctx context.Context, ruleUUID, teamUUID uuid.UUID) error {
-	url := fmt.Sprintf("%s/api/v1/notification/rule/%s/team/%s", r.baseURL, ruleUUID, teamUUID)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req)
+	apiPath := fmt.Sprintf("/api/v1/notification/rule/%s/team/%s", ruleUUID, teamUUID)
+	return r.data.API().Do(ctx, http.MethodPost, apiPath, nil, nil)
 }
 
 func (r *NotificationRuleTeamResource) removeTeamFromRule(ctx context.Context, ruleUUID, teamUUID uuid.UUID) error {
-	url := fmt.Sprintf("%s/api/v1/notification/rule/%s/team/%s", r.baseURL, ruleUUID, teamUUID)
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req)
+	apiPath := fmt.Sprintf("/api/v1/notification/rule/%s/team/%s", ruleUUID, teamUUID)
+	return r.data.API().Do(ctx, http.MethodDelete, apiPath, nil, nil)
 }
 
 func (r *NotificationRuleTeamResource) teamAssociationExists(ctx context.Context, ruleUUID, teamUUID uuid.UUID) (bool, error) {
 	// Get the notification rule and check if the team is in its teams list
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return false, err
-	}
-
 	var rules []NotificationRule
-	if err := r.doRequestWithResponse(req, &rules); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/rule", nil, &rules); err != nil {
 		return false, err
 	}
 
@@ -275,54 +247,4 @@ func (r *NotificationRuleTeamResource) teamAssociationExists(ctx context.Context
 	}
 
 	return false, fmt.Errorf("notification rule not found: %s", ruleUUID)
-}
-
-func (r *NotificationRuleTeamResource) doRequest(req *http.Request) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
-func (r *NotificationRuleTeamResource) doRequestWithResponse(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return decodeJSON(resp.Body, result)
-	}
-
-	return nil
 }

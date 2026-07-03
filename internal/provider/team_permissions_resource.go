@@ -25,7 +25,7 @@ func NewTeamPermissionsResource() resource.Resource {
 
 // TeamPermissionsResource defines the resource implementation.
 type TeamPermissionsResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // TeamPermissionsResourceModel describes the resource data model.
@@ -85,7 +85,7 @@ func (r *TeamPermissionsResource) Configure(ctx context.Context, req resource.Co
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *TeamPermissionsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -115,7 +115,7 @@ func (r *TeamPermissionsResource) Create(ctx context.Context, req resource.Creat
 		permission := dtrack.Permission{
 			Name: permName,
 		}
-		_, err = r.client.Permission.AddPermissionToTeam(ctx, permission, teamUUID)
+		_, err = r.data.Client.Permission.AddPermissionToTeam(ctx, permission, teamUUID)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to add permission %s to team, got error: %s", permName, err))
 			return
@@ -123,7 +123,7 @@ func (r *TeamPermissionsResource) Create(ctx context.Context, req resource.Creat
 	}
 
 	// Read back the team to get actual permissions from the API
-	team, err := r.client.Team.Get(ctx, teamUUID)
+	team, err := r.data.Client.Team.Get(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team after create, got error: %s", err))
 		return
@@ -163,7 +163,7 @@ func (r *TeamPermissionsResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
-	team, err := r.client.Team.Get(ctx, teamUUID)
+	team, err := r.data.Client.Team.Get(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team, got error: %s", err))
 		return
@@ -234,7 +234,7 @@ func (r *TeamPermissionsResource) Update(ctx context.Context, req resource.Updat
 			permission := dtrack.Permission{
 				Name: permName,
 			}
-			_, err = r.client.Permission.AddPermissionToTeam(ctx, permission, teamUUID)
+			_, err = r.data.Client.Permission.AddPermissionToTeam(ctx, permission, teamUUID)
 			if err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to add permission %s to team, got error: %s", permName, err))
 				return
@@ -248,7 +248,7 @@ func (r *TeamPermissionsResource) Update(ctx context.Context, req resource.Updat
 			permission := dtrack.Permission{
 				Name: permName,
 			}
-			_, err = r.client.Permission.RemovePermissionFromTeam(ctx, permission, teamUUID)
+			_, err = r.data.Client.Permission.RemovePermissionFromTeam(ctx, permission, teamUUID)
 			if err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove permission %s from team, got error: %s", permName, err))
 				return
@@ -257,7 +257,7 @@ func (r *TeamPermissionsResource) Update(ctx context.Context, req resource.Updat
 	}
 
 	// Read back the team to get actual permissions from the API
-	team, err := r.client.Team.Get(ctx, teamUUID)
+	team, err := r.data.Client.Team.Get(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team after update, got error: %s", err))
 		return
@@ -309,7 +309,7 @@ func (r *TeamPermissionsResource) Delete(ctx context.Context, req resource.Delet
 		permission := dtrack.Permission{
 			Name: permName,
 		}
-		_, err = r.client.Permission.RemovePermissionFromTeam(ctx, permission, teamUUID)
+		_, err = r.data.Client.Permission.RemovePermissionFromTeam(ctx, permission, teamUUID)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove permission %s from team, got error: %s", permName, err))
 			return

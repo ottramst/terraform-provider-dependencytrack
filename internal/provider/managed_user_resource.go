@@ -1,14 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -29,11 +25,7 @@ func NewManagedUserResource() resource.Resource {
 
 // ManagedUserResource defines the resource implementation.
 type ManagedUserResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // ManagedUserResourceModel describes the resource data model.
@@ -135,11 +127,7 @@ func (r *ManagedUserResource) Configure(ctx context.Context, req resource.Config
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *ManagedUserResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -298,19 +286,12 @@ func (r *ManagedUserResource) ImportState(ctx context.Context, req resource.Impo
 // Helper methods for API calls
 
 func (r *ManagedUserResource) createManagedUser(ctx context.Context, user ManagedUser) (*ManagedUser, error) {
-	return r.doManagedUserRequest(ctx, "PUT", user)
+	return r.doManagedUserRequest(ctx, http.MethodPut, user)
 }
 
 func (r *ManagedUserResource) getManagedUser(ctx context.Context, username string) (*ManagedUser, error) {
-	url := fmt.Sprintf("%s/api/v1/user/managed", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var users []ManagedUser
-	if err := r.doRequest(req, &users); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
 		return nil, err
 	}
 
@@ -325,70 +306,18 @@ func (r *ManagedUserResource) getManagedUser(ctx context.Context, username strin
 }
 
 func (r *ManagedUserResource) updateManagedUser(ctx context.Context, user ManagedUser) (*ManagedUser, error) {
-	return r.doManagedUserRequest(ctx, "POST", user)
+	return r.doManagedUserRequest(ctx, http.MethodPost, user)
 }
 
 func (r *ManagedUserResource) deleteManagedUser(ctx context.Context, user ManagedUser) error {
-	url := fmt.Sprintf("%s/api/v1/user/managed", r.baseURL)
-
-	body, err := json.Marshal(user)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
+	return r.data.API().Do(ctx, http.MethodDelete, "/api/v1/user/managed", user, nil)
 }
 
 func (r *ManagedUserResource) doManagedUserRequest(ctx context.Context, method string, user ManagedUser) (*ManagedUser, error) {
-	url := fmt.Sprintf("%s/api/v1/user/managed", r.baseURL)
-
-	body, err := json.Marshal(user)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
-
 	var result ManagedUser
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, method, "/api/v1/user/managed", user, &result); err != nil {
 		return nil, err
 	}
 
 	return &result, nil
-}
-
-func (r *ManagedUserResource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
 }

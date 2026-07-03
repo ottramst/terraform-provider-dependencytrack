@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -19,7 +18,7 @@ func NewConfigPropertyDataSource() datasource.DataSource {
 
 // ConfigPropertyDataSource defines the data source implementation.
 type ConfigPropertyDataSource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ConfigPropertyDataSourceModel describes the data source data model.
@@ -84,7 +83,7 @@ func (d *ConfigPropertyDataSource) Configure(ctx context.Context, req datasource
 		return
 	}
 
-	d.client = data.Client
+	d.data = data
 }
 
 func (d *ConfigPropertyDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -96,7 +95,7 @@ func (d *ConfigPropertyDataSource) Read(ctx context.Context, req datasource.Read
 		return
 	}
 
-	prop, err := d.client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
+	prop, err := d.data.Client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read config property, got error: %s", err))
 		return

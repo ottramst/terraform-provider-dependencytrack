@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -20,7 +19,7 @@ func NewTeamAPIKeysDataSource() datasource.DataSource {
 
 // TeamAPIKeysDataSource defines the data source implementation.
 type TeamAPIKeysDataSource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // TeamAPIKeysDataSourceModel describes the data source data model.
@@ -98,7 +97,7 @@ func (d *TeamAPIKeysDataSource) Configure(ctx context.Context, req datasource.Co
 		return
 	}
 
-	d.client = data.Client
+	d.data = data
 }
 
 func (d *TeamAPIKeysDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -117,7 +116,7 @@ func (d *TeamAPIKeysDataSource) Read(ctx context.Context, req datasource.ReadReq
 	}
 
 	// Get all API keys for the team
-	apiKeys, err := d.client.Team.GetAPIKeys(ctx, teamUUID)
+	apiKeys, err := d.data.Client.Team.GetAPIKeys(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team API keys, got error: %s", err))
 		return

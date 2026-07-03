@@ -37,7 +37,7 @@ func NewPolicyResource() resource.Resource {
 // Terraform schema to accurately reflect API behavior and prevent perpetual drift.
 // Users who need to control these values should file an issue with the Dependency-Track project.
 type PolicyResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // PolicyResourceModel describes the resource data model.
@@ -160,7 +160,7 @@ func (r *PolicyResource) Configure(ctx context.Context, req resource.ConfigureRe
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -181,7 +181,7 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Create policy using client library
-	createdPolicy, err := r.client.Policy.Create(ctx, policy)
+	createdPolicy, err := r.data.Client.Policy.Create(ctx, policy)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create policy, got error: %s", err))
 		return
@@ -202,7 +202,7 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 				Value:    condition.Value.ValueString(),
 			}
 
-			createdCondition, err := r.client.PolicyCondition.Create(ctx, createdPolicy.UUID, apiCondition)
+			createdCondition, err := r.data.Client.PolicyCondition.Create(ctx, createdPolicy.UUID, apiCondition)
 			if err != nil {
 				resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create policy condition, got error: %s", err))
 				return
@@ -213,7 +213,7 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 	}
 
 	// Read back the policy to get complete state
-	readPolicy, err := r.client.Policy.Get(ctx, createdPolicy.UUID)
+	readPolicy, err := r.data.Client.Policy.Get(ctx, createdPolicy.UUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy after create, got error: %s", err))
 		return
@@ -240,7 +240,7 @@ func (r *PolicyResource) Read(ctx context.Context, req resource.ReadRequest, res
 		return
 	}
 
-	policy, err := r.client.Policy.Get(ctx, policyUUID)
+	policy, err := r.data.Client.Policy.Get(ctx, policyUUID)
 	if err != nil {
 		// If policy not found, remove from state
 		resp.State.RemoveResource(ctx)
@@ -278,7 +278,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 		ViolationState: dtrack.PolicyViolationState(plan.ViolationState.ValueString()),
 	}
 
-	updatedPolicy, err := r.client.Policy.Update(ctx, policy)
+	updatedPolicy, err := r.data.Client.Policy.Update(ctx, policy)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update policy, got error: %s", err))
 		return
@@ -302,7 +302,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 		if err != nil {
 			continue // Skip invalid UUIDs
 		}
-		err = r.client.PolicyCondition.Delete(ctx, condUUID)
+		err = r.data.Client.PolicyCondition.Delete(ctx, condUUID)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete policy condition, got error: %s", err))
 			return
@@ -317,7 +317,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 			Value:    condition.Value.ValueString(),
 		}
 
-		createdCondition, err := r.client.PolicyCondition.Create(ctx, updatedPolicy.UUID, apiCondition)
+		createdCondition, err := r.data.Client.PolicyCondition.Create(ctx, updatedPolicy.UUID, apiCondition)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create policy condition, got error: %s", err))
 			return
@@ -327,7 +327,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	// Read back the policy to get complete state
-	readPolicy, err := r.client.Policy.Get(ctx, updatedPolicy.UUID)
+	readPolicy, err := r.data.Client.Policy.Get(ctx, updatedPolicy.UUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy after update, got error: %s", err))
 		return
@@ -354,7 +354,7 @@ func (r *PolicyResource) Delete(ctx context.Context, req resource.DeleteRequest,
 		return
 	}
 
-	err = r.client.Policy.Delete(ctx, policyUUID)
+	err = r.data.Client.Policy.Delete(ctx, policyUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete policy, got error: %s", err))
 		return

@@ -20,7 +20,7 @@ func NewProjectDataSource() datasource.DataSource {
 
 // ProjectDataSource defines the data source implementation.
 type ProjectDataSource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ProjectDataSourceModel describes the data source data model.
@@ -123,7 +123,7 @@ func (d *ProjectDataSource) Configure(ctx context.Context, req datasource.Config
 		return
 	}
 
-	d.client = data.Client
+	d.data = data
 }
 
 func (d *ProjectDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -151,14 +151,14 @@ func (d *ProjectDataSource) Read(ctx context.Context, req datasource.ReadRequest
 			return
 		}
 
-		project, err = d.client.Project.Get(ctx, projectUUID)
+		project, err = d.data.Client.Project.Get(ctx, projectUUID)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read project, got error: %s", err))
 			return
 		}
 	} else if hasName && hasVersion {
 		// Lookup by name and version
-		project, err = d.client.Project.Lookup(ctx, data.Name.ValueString(), data.Version.ValueString())
+		project, err = d.data.Client.Project.Lookup(ctx, data.Name.ValueString(), data.Version.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to lookup project, got error: %s", err))
 			return

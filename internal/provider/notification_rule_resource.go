@@ -1,14 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -31,11 +27,7 @@ func NewNotificationRuleResource() resource.Resource {
 
 // NotificationRuleResource defines the resource implementation.
 type NotificationRuleResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // NotificationRuleResourceModel describes the resource data model.
@@ -178,11 +170,7 @@ func (r *NotificationRuleResource) Configure(ctx context.Context, req resource.C
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *NotificationRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -318,7 +306,7 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 
 	rule, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if isNotFound(err) {
 			// Rule doesn't exist anymore, remove from state
 			resp.State.RemoveResource(ctx)
 			return
@@ -524,20 +512,8 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 //
 // Callers should follow up with updateRule() if any of these fields need non-default values.
 func (r *NotificationRuleResource) createRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
 	var result NotificationRule
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPut, "/api/v1/notification/rule", rule, &result); err != nil {
 		return NotificationRule{}, err
 	}
 
@@ -545,15 +521,8 @@ func (r *NotificationRuleResource) createRule(ctx context.Context, rule Notifica
 }
 
 func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
 	var rules []NotificationRule
-	if err := r.doRequest(req, &rules); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/rule", nil, &rules); err != nil {
 		return NotificationRule{}, err
 	}
 
@@ -568,20 +537,8 @@ func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UU
 }
 
 func (r *NotificationRuleResource) updateRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
 	var result NotificationRule
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPost, "/api/v1/notification/rule", rule, &result); err != nil {
 		return NotificationRule{}, err
 	}
 
@@ -593,52 +550,12 @@ func (r *NotificationRuleResource) deleteRule(ctx context.Context, ruleUUID uuid
 	rule, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
 		// If rule doesn't exist, consider it already deleted
-		if isNotFoundError(err) {
+		if isNotFound(err) {
 			return nil
 		}
 		return err
 	}
 
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
 	// DELETE requires the rule object in the body with all required fields
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
-}
-
-func (r *NotificationRuleResource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
+	return r.data.API().Do(ctx, http.MethodDelete, "/api/v1/notification/rule", rule, nil)
 }

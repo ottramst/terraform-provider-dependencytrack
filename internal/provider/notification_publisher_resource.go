@@ -1,14 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -30,11 +26,7 @@ func NewNotificationPublisherResource() resource.Resource {
 
 // NotificationPublisherResource defines the resource implementation.
 type NotificationPublisherResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // NotificationPublisherResourceModel describes the resource data model.
@@ -129,11 +121,7 @@ func (r *NotificationPublisherResource) Configure(ctx context.Context, req resou
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *NotificationPublisherResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -196,7 +184,7 @@ func (r *NotificationPublisherResource) Read(ctx context.Context, req resource.R
 
 	publisher, err := r.getPublisher(ctx, publisherUUID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if isNotFound(err) {
 			// Publisher doesn't exist anymore, remove from state
 			resp.State.RemoveResource(ctx)
 			return
@@ -309,20 +297,8 @@ func (r *NotificationPublisherResource) ImportState(ctx context.Context, req res
 // Helper methods for API calls
 
 func (r *NotificationPublisherResource) createPublisher(ctx context.Context, publisher NotificationPublisher) (NotificationPublisher, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/publisher", r.baseURL)
-
-	body, err := json.Marshal(publisher)
-	if err != nil {
-		return NotificationPublisher{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationPublisher{}, err
-	}
-
 	var result NotificationPublisher
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPut, "/api/v1/notification/publisher", publisher, &result); err != nil {
 		return NotificationPublisher{}, err
 	}
 
@@ -330,15 +306,8 @@ func (r *NotificationPublisherResource) createPublisher(ctx context.Context, pub
 }
 
 func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publisherUUID uuid.UUID) (NotificationPublisher, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/publisher", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return NotificationPublisher{}, err
-	}
-
 	var publishers []NotificationPublisher
-	if err := r.doRequest(req, &publishers); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/publisher", nil, &publishers); err != nil {
 		return NotificationPublisher{}, err
 	}
 
@@ -353,20 +322,8 @@ func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publis
 }
 
 func (r *NotificationPublisherResource) updatePublisher(ctx context.Context, publisher NotificationPublisher) (NotificationPublisher, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/publisher", r.baseURL)
-
-	body, err := json.Marshal(publisher)
-	if err != nil {
-		return NotificationPublisher{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationPublisher{}, err
-	}
-
 	var result NotificationPublisher
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPost, "/api/v1/notification/publisher", publisher, &result); err != nil {
 		return NotificationPublisher{}, err
 	}
 
@@ -374,45 +331,5 @@ func (r *NotificationPublisherResource) updatePublisher(ctx context.Context, pub
 }
 
 func (r *NotificationPublisherResource) deletePublisher(ctx context.Context, publisherUUID uuid.UUID) error {
-	url := fmt.Sprintf("%s/api/v1/notification/publisher/%s", r.baseURL, publisherUUID)
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
-}
-
-func (r *NotificationPublisherResource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
-}
-
-func isNotFoundError(err error) bool {
-	return err != nil && (err.Error() == "notification publisher not found" ||
-		(len(err.Error()) > 0 && err.Error()[0:3] == "API" && err.Error()[len(err.Error())-3:] == "404"))
+	return r.data.API().Do(ctx, http.MethodDelete, fmt.Sprintf("/api/v1/notification/publisher/%s", publisherUUID), nil, nil)
 }

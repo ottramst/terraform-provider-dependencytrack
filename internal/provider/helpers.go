@@ -1,9 +1,7 @@
 package provider
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 )
 
@@ -16,9 +14,4 @@ func parseCompositeID(id string, part1Name, part2Name string) (string, string, e
 	}
 
 	return parts[0], parts[1], nil
-}
-
-// decodeJSON decodes JSON from an io.Reader into the provided result interface.
-func decodeJSON(reader io.Reader, result interface{}) error {
-	return json.NewDecoder(reader).Decode(result)
 }

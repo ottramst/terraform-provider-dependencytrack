@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -11,14 +12,29 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Data contains the client and API configuration.
 type Data struct {
-	Client      *dtrack.Client
-	Endpoint    string
-	ApiKey      string
-	BearerToken string
+	Client        *dtrack.Client
+	Endpoint      string
+	ApiKey        string
+	BearerToken   string
+	ServerVersion ServerVersion
+	api           *apiClient
+}
+
+// IsV5 reports whether the configured Dependency-Track server is running
+// version 5.x or newer.
+func (d *Data) IsV5() bool {
+	return d.ServerVersion.IsV5()
+}
+
+// API returns the shared HTTP client used by resources/data sources that
+// call Dependency-Track endpoints not covered by client-go's typed methods.
+func (d *Data) API() *apiClient {
+	return d.api
 }
 
 // Ensure DependencyTrackProvider satisfies various provider interfaces.
@@ -190,12 +206,48 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 		}
 	}
 
+	// Detect the Dependency-Track server version via the unauthenticated
+	// GET /api/version endpoint (exposed by both v4 and v5). This is required
+	// (no silent fallback) since resource behavior diverges between major
+	// versions starting in a later task.
+	about, err := client.About.Get(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Detect Dependency-Track Server Version",
+			"The provider requires GET "+data.Endpoint.ValueString()+"/api/version to be reachable. "+
+				"Check the endpoint configuration and any proxies between Terraform and the Dependency-Track server. "+
+				"Error: "+err.Error(),
+		)
+		return
+	}
+
+	serverVersion, err := parseServerVersion(about.Version)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Detect Dependency-Track Server Version",
+			fmt.Sprintf(
+				"The provider requires GET %s/api/version to return a valid Dependency-Track version, "+
+					"but got %q which could not be parsed. Check the endpoint configuration and any proxies "+
+					"between Terraform and the Dependency-Track server. Error: %s",
+				data.Endpoint.ValueString(), about.Version, err,
+			),
+		)
+		return
+	}
+
+	tflog.Info(ctx, "detected Dependency-Track server version", map[string]interface{}{
+		"version": serverVersion.Raw,
+		"major":   serverVersion.Major,
+	})
+
 	// Create provider data with client and API configuration
 	providerData := &Data{
-		Client:      client,
-		Endpoint:    data.Endpoint.ValueString(),
-		ApiKey:      apiKey,
-		BearerToken: bearerToken,
+		Client:        client,
+		Endpoint:      data.Endpoint.ValueString(),
+		ApiKey:        apiKey,
+		BearerToken:   bearerToken,
+		ServerVersion: serverVersion,
+		api:           newAPIClient(data.Endpoint.ValueString(), apiKey, bearerToken),
 	}
 
 	// Make the provider data available to data sources and resources

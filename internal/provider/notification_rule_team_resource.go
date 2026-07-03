@@ -228,8 +228,8 @@ func (r *NotificationRuleTeamResource) removeTeamFromRule(ctx context.Context, r
 
 func (r *NotificationRuleTeamResource) teamAssociationExists(ctx context.Context, ruleUUID, teamUUID uuid.UUID) (bool, error) {
 	// Get the notification rule and check if the team is in its teams list
-	var rules []NotificationRule
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/rule", nil, &rules); err != nil {
+	rules, err := apiGetAllPages[NotificationRule](ctx, r.data.API(), "/api/v1/notification/rule", nil)
+	if err != nil {
 		return false, err
 	}
 

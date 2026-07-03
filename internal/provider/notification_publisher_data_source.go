@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -198,10 +197,5 @@ func (d *NotificationPublisherDataSource) Read(ctx context.Context, req datasour
 // Helper methods for API calls.
 
 func (d *NotificationPublisherDataSource) getAllPublishers(ctx context.Context) ([]NotificationPublisher, error) {
-	var publishers []NotificationPublisher
-	if err := d.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/publisher", nil, &publishers); err != nil {
-		return nil, err
-	}
-
-	return publishers, nil
+	return apiGetAllPages[NotificationPublisher](ctx, d.data.API(), "/api/v1/notification/publisher", nil)
 }

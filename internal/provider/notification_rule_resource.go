@@ -467,9 +467,17 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 
 	model.Publisher = types.StringValue(rule.Publisher.UUID.String())
 
-	if rule.PublisherConfig != "" {
+	switch {
+	case rule.PublisherConfig != "":
 		model.PublisherConfig = types.StringValue(rule.PublisherConfig)
-	} else if model.PublisherConfig.IsNull() {
+	case model.PublisherConfig.IsUnknown():
+		// DT >= 4.14 no longer echoes publisherConfig in create/update
+		// responses (and may omit it from list reads), so the API value comes
+		// back empty. When nothing was configured, the planned value is
+		// unknown; resolve it to null rather than leaving an unknown in state,
+		// which would trip the framework's "inconsistent result" check. A
+		// configured value carried over from the plan, or the prior state on
+		// read, is already concrete and left untouched.
 		model.PublisherConfig = types.StringNull()
 	}
 
@@ -521,8 +529,8 @@ func (r *NotificationRuleResource) createRule(ctx context.Context, rule Notifica
 }
 
 func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, error) {
-	var rules []NotificationRule
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/rule", nil, &rules); err != nil {
+	rules, err := apiGetAllPages[NotificationRule](ctx, r.data.API(), "/api/v1/notification/rule", nil)
+	if err != nil {
 		return NotificationRule{}, err
 	}
 

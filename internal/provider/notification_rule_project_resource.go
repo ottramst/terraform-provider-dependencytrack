@@ -228,8 +228,8 @@ func (r *NotificationRuleProjectResource) removeProjectFromRule(ctx context.Cont
 
 func (r *NotificationRuleProjectResource) projectAssociationExists(ctx context.Context, ruleUUID, projectUUID uuid.UUID) (bool, error) {
 	// Get the notification rule and check if the project is in its projects list
-	var rules []NotificationRule
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/rule", nil, &rules); err != nil {
+	rules, err := apiGetAllPages[NotificationRule](ctx, r.data.API(), "/api/v1/notification/rule", nil)
+	if err != nil {
 		return false, err
 	}
 

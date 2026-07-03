@@ -306,8 +306,8 @@ func (r *NotificationPublisherResource) createPublisher(ctx context.Context, pub
 }
 
 func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publisherUUID uuid.UUID) (NotificationPublisher, error) {
-	var publishers []NotificationPublisher
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/notification/publisher", nil, &publishers); err != nil {
+	publishers, err := apiGetAllPages[NotificationPublisher](ctx, r.data.API(), "/api/v1/notification/publisher", nil)
+	if err != nil {
 		return NotificationPublisher{}, err
 	}
 

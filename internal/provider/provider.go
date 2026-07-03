@@ -275,6 +275,7 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewRepositoryResource,
 		NewOIDCGroupResource,
 		NewTagResource,
+		NewLicenseGroupResource,
 	}
 }
 
@@ -294,6 +295,7 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewRepositoriesDataSource,
 		NewOIDCGroupDataSource,
 		NewTagsDataSource,
+		NewLicenseGroupDataSource,
 	}
 }
 

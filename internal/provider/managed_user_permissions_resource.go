@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -33,17 +32,6 @@ type ManagedUserPermissionsResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	User        types.String `tfsdk:"user"`
 	Permissions types.Set    `tfsdk:"permissions"`
-}
-
-// ManagedUserWithPermissions represents a managed user with permissions from the API.
-type ManagedUserWithPermissions struct {
-	Username            string              `json:"username"`
-	Fullname            string              `json:"fullname,omitempty"`
-	Email               string              `json:"email,omitempty"`
-	Suspended           bool                `json:"suspended"`
-	ForcePasswordChange bool                `json:"forcePasswordChange"`
-	NonExpiryPassword   bool                `json:"nonExpiryPassword"`
-	Permissions         []dtrack.Permission `json:"permissions"`
 }
 
 func (r *ManagedUserPermissionsResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -100,18 +88,18 @@ func (r *ManagedUserPermissionsResource) Configure(ctx context.Context, req reso
 }
 
 func (r *ManagedUserPermissionsResource) addPermissionToUser(ctx context.Context, username, permission string) error {
-	apiPath := fmt.Sprintf("/api/v1/permission/%s/user/%s", permission, username)
-	return r.data.API().Do(ctx, http.MethodPost, apiPath, nil, nil)
+	_, err := r.data.Client.Permission.AddPermissionToUser(ctx, dtrack.Permission{Name: permission}, username)
+	return err
 }
 
 func (r *ManagedUserPermissionsResource) removePermissionFromUser(ctx context.Context, username, permission string) error {
-	apiPath := fmt.Sprintf("/api/v1/permission/%s/user/%s", permission, username)
-	return r.data.API().Do(ctx, http.MethodDelete, apiPath, nil, nil)
+	_, err := r.data.Client.Permission.RemovePermissionFromUser(ctx, dtrack.Permission{Name: permission}, username)
+	return err
 }
 
 func (r *ManagedUserPermissionsResource) getUserPermissions(ctx context.Context, username string) ([]string, error) {
-	var users []ManagedUserWithPermissions
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
+	users, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
+	if err != nil {
 		return nil, err
 	}
 

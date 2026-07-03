@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
+	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -123,16 +123,16 @@ func (d *ManagedUserDataSource) Read(ctx context.Context, req datasource.ReadReq
 
 // Helper methods for API calls
 
-func (d *ManagedUserDataSource) getManagedUser(ctx context.Context, username string) (*ManagedUser, error) {
-	var users []ManagedUser
-	if err := d.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
+func (d *ManagedUserDataSource) getManagedUser(ctx context.Context, username string) (*dtrack.ManagedUser, error) {
+	users, err := fetchAllPages(ctx, d.data.Client.User.GetAllManaged)
+	if err != nil {
 		return nil, err
 	}
 
 	// Find user by username
-	for _, u := range users {
-		if u.Username == username {
-			return &u, nil
+	for i := range users {
+		if users[i].Username == username {
+			return &users[i], nil
 		}
 	}
 

@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -318,6 +319,78 @@ func TestApiGetAllPages_ShortPageTerminatesWithoutHeader(t *testing.T) {
 	}
 	if requestCount != 2 {
 		t.Fatalf("apiGetAllPages made %d requests, want 2 (100 then a short 30-item page)", requestCount)
+	}
+}
+
+func TestFetchAllPages_PaginatesWithoutTotalCount(t *testing.T) {
+	// Mirrors client-go's UserService.GetAllManaged, which never populates
+	// Page.TotalCount. fetchAllPages must still fetch every page (dtrack.ForEach
+	// would stop after the first because itemsSeen >= TotalCount(0)).
+	const total = 250
+
+	var gotPageSizes []int
+	fetch := func(_ context.Context, po dtrack.PageOptions) (dtrack.Page[apiClientTestItem], error) {
+		gotPageSizes = append(gotPageSizes, po.PageSize)
+
+		start := (po.PageNumber - 1) * po.PageSize
+		end := start + po.PageSize
+		if end > total {
+			end = total
+		}
+
+		var items []apiClientTestItem
+		for i := start; i < end; i++ {
+			items = append(items, apiClientTestItem{ID: i})
+		}
+
+		// Deliberately leave TotalCount unset, as GetAllManaged does.
+		return dtrack.Page[apiClientTestItem]{Items: items}, nil
+	}
+
+	got, err := fetchAllPages(context.Background(), fetch)
+	if err != nil {
+		t.Fatalf("fetchAllPages returned unexpected error: %s", err)
+	}
+
+	if len(got) != total {
+		t.Fatalf("fetchAllPages returned %d items, want %d", len(got), total)
+	}
+	for i, item := range got {
+		if item.ID != i {
+			t.Fatalf("item[%d].ID = %d, want %d", i, item.ID, i)
+		}
+	}
+	for _, size := range gotPageSizes {
+		if size != 100 {
+			t.Errorf("requested pageSize = %d, want 100", size)
+		}
+	}
+	if len(gotPageSizes) != 3 {
+		t.Errorf("fetched %d pages, want 3 (100 + 100 + short 50)", len(gotPageSizes))
+	}
+}
+
+func TestFetchAllPages_PropagatesError(t *testing.T) {
+	wantErr := errors.New("boom")
+	fetch := func(_ context.Context, _ dtrack.PageOptions) (dtrack.Page[apiClientTestItem], error) {
+		return dtrack.Page[apiClientTestItem]{}, wantErr
+	}
+
+	_, err := fetchAllPages(context.Background(), fetch)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("fetchAllPages error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestFetchAllPages_SafetyCap(t *testing.T) {
+	// A server that always returns a full page must not loop forever.
+	fetch := func(_ context.Context, po dtrack.PageOptions) (dtrack.Page[apiClientTestItem], error) {
+		return dtrack.Page[apiClientTestItem]{Items: make([]apiClientTestItem, po.PageSize)}, nil
+	}
+
+	_, err := fetchAllPages(context.Background(), fetch)
+	if err == nil {
+		t.Fatal("expected an error when the safety cap is exceeded")
 	}
 }
 

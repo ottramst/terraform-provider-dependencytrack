@@ -225,6 +225,36 @@ func apiGetAllPages[T any](ctx context.Context, c *apiClient, path string, query
 	return nil, fmt.Errorf("apiGetAllPages: exceeded safety cap of %d pages fetching %s", apiGetAllPagesSafetyCap, path)
 }
 
+// fetchAllPages exhaustively retrieves every item from a client-go paginated
+// list method by requesting fixed-size pages until a short (or empty) page is
+// returned.
+//
+// It deliberately does not use dtrack.ForEach / dtrack.FetchAll: those stop
+// once the number of items seen reaches Page.TotalCount, but several client-go
+// list methods (notably UserService.GetAllManaged in v0.19.0) never populate
+// TotalCount, which would make them terminate after the very first page.
+// Requesting pages of 100 and stopping on the first short page keeps behavior
+// correct on both DT v4 and v5 (v5 caps list pageSize at 100).
+func fetchAllPages[T any](ctx context.Context, fetch func(context.Context, dtrack.PageOptions) (dtrack.Page[T], error)) ([]T, error) {
+	const pageSize = 100
+
+	var all []T
+	for page := 1; page <= apiGetAllPagesSafetyCap; page++ {
+		p, err := fetch(ctx, dtrack.PageOptions{PageNumber: page, PageSize: pageSize})
+		if err != nil {
+			return nil, err
+		}
+
+		all = append(all, p.Items...)
+
+		if len(p.Items) < pageSize {
+			return all, nil
+		}
+	}
+
+	return nil, fmt.Errorf("fetchAllPages: exceeded safety cap of %d pages", apiGetAllPagesSafetyCap)
+}
+
 // cloneQueryValues returns a copy of v so callers can mutate the result
 // without affecting the caller's url.Values (or a shared base map across
 // pagination loop iterations).

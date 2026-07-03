@@ -3,9 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
+	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -34,11 +34,6 @@ type UserTeamMembershipResourceModel struct {
 	ID       types.String `tfsdk:"id"`
 	Username types.String `tfsdk:"username"`
 	Team     types.String `tfsdk:"team"`
-}
-
-// IdentifiableObject represents an object with a UUID field.
-type IdentifiableObject struct {
-	UUID uuid.UUID `json:"uuid"`
 }
 
 func (r *UserTeamMembershipResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -239,91 +234,62 @@ func (r *UserTeamMembershipResource) ImportState(ctx context.Context, req resour
 // Helper methods for API calls
 
 func (r *UserTeamMembershipResource) addTeamToUser(ctx context.Context, username string, teamUUID uuid.UUID) error {
-	apiPath := fmt.Sprintf("/api/v1/user/%s/membership", username)
-	identifiable := IdentifiableObject{UUID: teamUUID}
-	return r.data.API().Do(ctx, http.MethodPost, apiPath, identifiable, nil)
+	_, err := r.data.Client.User.AddTeamToUser(ctx, username, teamUUID)
+	return err
 }
 
 func (r *UserTeamMembershipResource) removeTeamFromUser(ctx context.Context, username string, teamUUID uuid.UUID) error {
-	apiPath := fmt.Sprintf("/api/v1/user/%s/membership", username)
-	identifiable := IdentifiableObject{UUID: teamUUID}
-	return r.data.API().Do(ctx, http.MethodDelete, apiPath, identifiable, nil)
+	_, err := r.data.Client.User.RemoveTeamFromUser(ctx, username, teamUUID)
+	return err
+}
+
+// teamsContain reports whether teamUUID is present in the given team list.
+func teamsContain(teams []dtrack.Team, teamUUID uuid.UUID) bool {
+	for _, team := range teams {
+		if team.UUID == teamUUID {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, username string, teamUUID uuid.UUID) (bool, error) {
-	// Get the user's teams and check if the team is in the list
-	// We'll use the managed user endpoint to get the user details
-	var users []struct {
-		Username string `json:"username"`
-		Teams    []struct {
-			UUID uuid.UUID `json:"uuid"`
-		} `json:"teams"`
-	}
-
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
+	// A user may be managed, LDAP, or OIDC; check each source in turn.
+	managedUsers, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
+	if err != nil {
 		return false, err
 	}
-
-	// Find the user by username
-	for _, user := range users {
+	for _, user := range managedUsers {
 		if user.Username == username {
-			// Check if the team is in the user's teams
-			for _, team := range user.Teams {
-				if team.UUID == teamUUID {
-					return true, nil
-				}
-			}
-			return false, nil
+			return teamsContain(user.Teams, teamUUID), nil
 		}
 	}
 
-	// User not found - might be LDAP or OIDC user
-	// Try LDAP users endpoint
-	var ldapUsers []struct {
-		Username string `json:"username"`
-		Teams    []struct {
-			UUID uuid.UUID `json:"uuid"`
-		} `json:"teams"`
-	}
-
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/ldap", nil, &ldapUsers); err != nil {
-		// LDAP might not be configured, continue to OIDC
+	// Not a managed user - try LDAP. LDAP might not be configured, so log and
+	// fall through to OIDC on error.
+	ldapUsers, err := fetchAllPages(ctx, r.data.Client.LDAP.GetUsers)
+	if err != nil {
 		tflog.Debug(ctx, "Failed to fetch LDAP users, trying OIDC", map[string]interface{}{"error": err.Error()})
 	} else {
 		for _, user := range ldapUsers {
 			if user.Username == username {
-				for _, team := range user.Teams {
-					if team.UUID == teamUUID {
-						return true, nil
-					}
-				}
-				return false, nil
+				return teamsContain(user.Teams, teamUUID), nil
 			}
 		}
 	}
 
-	// Try OIDC users endpoint
-	var oidcUsers []struct {
-		Username string `json:"username"`
-		Teams    []struct {
-			UUID uuid.UUID `json:"uuid"`
-		} `json:"teams"`
-	}
-
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/oidc", nil, &oidcUsers); err != nil {
-		// OIDC might not be configured
+	// Try OIDC users. client-go's OIDCService.GetAllUsers takes no PageOptions
+	// (v0.19.0), so it cannot paginate past the server's default page cap; use
+	// the shared paginating HTTP helper against the same endpoint instead.
+	oidcUsers, err := apiGetAllPages[dtrack.OIDCUser](ctx, r.data.API(), "/api/v1/user/oidc", nil)
+	if err != nil {
+		// OIDC might not be configured.
 		tflog.Debug(ctx, "Failed to fetch OIDC users", map[string]interface{}{"error": err.Error()})
 		return false, fmt.Errorf("user not found in managed, LDAP, or OIDC users: %s", username)
 	}
-
 	for _, user := range oidcUsers {
 		if user.Username == username {
-			for _, team := range user.Teams {
-				if team.UUID == teamUUID {
-					return true, nil
-				}
-			}
-			return false, nil
+			return teamsContain(user.Teams, teamUUID), nil
 		}
 	}
 

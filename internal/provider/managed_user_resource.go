@@ -3,8 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
-	"net/http"
 
+	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -38,18 +38,6 @@ type ManagedUserResourceModel struct {
 	Suspended           types.Bool   `tfsdk:"suspended"`
 	ForcePasswordChange types.Bool   `tfsdk:"force_password_change"`
 	NonExpiryPassword   types.Bool   `tfsdk:"non_expiry_password"`
-}
-
-// ManagedUser represents the API structure for managed users.
-type ManagedUser struct {
-	Username            string `json:"username"`
-	Fullname            string `json:"fullname"`
-	Email               string `json:"email,omitempty"`
-	NewPassword         string `json:"newPassword,omitempty"`
-	ConfirmPassword     string `json:"confirmPassword,omitempty"`
-	Suspended           bool   `json:"suspended"`
-	ForcePasswordChange bool   `json:"forcePasswordChange"`
-	NonExpiryPassword   bool   `json:"nonExpiryPassword"`
 }
 
 func (r *ManagedUserResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -144,7 +132,7 @@ func (r *ManagedUserResource) Create(ctx context.Context, req resource.CreateReq
 	password := data.Password.ValueString()
 
 	// Create managed user via API
-	user := ManagedUser{
+	user := dtrack.ManagedUser{
 		Username:            data.Username.ValueString(),
 		Fullname:            data.Fullname.ValueString(),
 		Email:               data.Email.ValueString(),
@@ -155,7 +143,7 @@ func (r *ManagedUserResource) Create(ctx context.Context, req resource.CreateReq
 		NonExpiryPassword:   data.NonExpiryPassword.ValueBool(),
 	}
 
-	createdUser, err := r.createManagedUser(ctx, user)
+	createdUser, err := r.data.Client.User.CreateManaged(ctx, user)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create managed user, got error: %s", err))
 		return
@@ -220,7 +208,7 @@ func (r *ManagedUserResource) Update(ctx context.Context, req resource.UpdateReq
 	password := data.Password.ValueString()
 
 	// Update user via API
-	user := ManagedUser{
+	user := dtrack.ManagedUser{
 		Username:            data.Username.ValueString(),
 		Fullname:            data.Fullname.ValueString(),
 		Email:               data.Email.ValueString(),
@@ -231,7 +219,7 @@ func (r *ManagedUserResource) Update(ctx context.Context, req resource.UpdateReq
 		NonExpiryPassword:   data.NonExpiryPassword.ValueBool(),
 	}
 
-	updatedUser, err := r.updateManagedUser(ctx, user)
+	updatedUser, err := r.data.Client.User.UpdateManaged(ctx, user)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update managed user, got error: %s", err))
 		return
@@ -261,11 +249,11 @@ func (r *ManagedUserResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	// Delete user via API
-	user := ManagedUser{
+	user := dtrack.ManagedUser{
 		Username: data.Username.ValueString(),
 	}
 
-	err := r.deleteManagedUser(ctx, user)
+	err := r.data.Client.User.DeleteManaged(ctx, user)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete managed user, got error: %s", err))
 		return
@@ -285,39 +273,18 @@ func (r *ManagedUserResource) ImportState(ctx context.Context, req resource.Impo
 
 // Helper methods for API calls
 
-func (r *ManagedUserResource) createManagedUser(ctx context.Context, user ManagedUser) (*ManagedUser, error) {
-	return r.doManagedUserRequest(ctx, http.MethodPut, user)
-}
-
-func (r *ManagedUserResource) getManagedUser(ctx context.Context, username string) (*ManagedUser, error) {
-	var users []ManagedUser
-	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/user/managed", nil, &users); err != nil {
+func (r *ManagedUserResource) getManagedUser(ctx context.Context, username string) (*dtrack.ManagedUser, error) {
+	users, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
+	if err != nil {
 		return nil, err
 	}
 
 	// Find user by username
-	for _, u := range users {
-		if u.Username == username {
-			return &u, nil
+	for i := range users {
+		if users[i].Username == username {
+			return &users[i], nil
 		}
 	}
 
 	return nil, fmt.Errorf("managed user not found: %s", username)
-}
-
-func (r *ManagedUserResource) updateManagedUser(ctx context.Context, user ManagedUser) (*ManagedUser, error) {
-	return r.doManagedUserRequest(ctx, http.MethodPost, user)
-}
-
-func (r *ManagedUserResource) deleteManagedUser(ctx context.Context, user ManagedUser) error {
-	return r.data.API().Do(ctx, http.MethodDelete, "/api/v1/user/managed", user, nil)
-}
-
-func (r *ManagedUserResource) doManagedUserRequest(ctx context.Context, method string, user ManagedUser) (*ManagedUser, error) {
-	var result ManagedUser
-	if err := r.data.API().Do(ctx, method, "/api/v1/user/managed", user, &result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
 }

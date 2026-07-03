@@ -36,7 +36,7 @@ resource "dependencytrack_config_property" "example" {
 
 - `description` (String) The description of the config property
 - `id` (String) The ID of the config property in the format `group_name/property_name`
-- `type` (String) The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID)
+- `type` (String) The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID). The ENCRYPTEDSTRING type only exists on Dependency-Track v4; v5 exposes no ENCRYPTEDSTRING config properties.
 
 ## Import
 

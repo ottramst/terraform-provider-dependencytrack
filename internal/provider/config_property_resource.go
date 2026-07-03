@@ -75,8 +75,9 @@ func (r *ConfigPropertyResource) Schema(ctx context.Context, req resource.Schema
 				MarkdownDescription: "The value of the config property",
 			},
 			"type": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID)",
+				Computed: true,
+				MarkdownDescription: "The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID). " +
+					"The ENCRYPTEDSTRING type only exists on Dependency-Track v4; v5 exposes no ENCRYPTEDSTRING config properties.",
 			},
 			"description": schema.StringAttribute{
 				Computed:            true,

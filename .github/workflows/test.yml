@@ -10,7 +10,6 @@ jobs:
   test:
     name: Terraform Provider Acceptance Tests
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.dtrack.experimental || false }}
     env:
       DEPENDENCYTRACK_ENDPOINT: http://localhost:8081
       DEPENDENCYTRACK_USERNAME: admin
@@ -20,7 +19,7 @@ jobs:
       matrix:
         dtrack:
           - { version: '4.14.2', compose: docker-compose.yml }
-          - { version: '5.0.2', compose: docker-compose.v5.yml, experimental: true }
+          - { version: '5.0.2', compose: docker-compose.v5.yml }
         terraform-version:
           - '1.9.*'
           - '1.12.*'

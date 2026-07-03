@@ -18,7 +18,7 @@ func TestAccNotificationRuleTeamResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccNotificationRuleTeamResourceConfig(suffix),
+				Config: testAccNotificationRuleTeamResourceConfig(suffix, testAccEmailPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule_team.test",
@@ -48,11 +48,11 @@ func TestAccNotificationRuleTeamResource(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleTeamResourceConfig(suffix string) string {
+func testAccNotificationRuleTeamResourceConfig(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Email Publisher for Team Association %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.SendMailPublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
   description        = "Test email publisher for team notifications"
 }
@@ -75,7 +75,7 @@ resource "dependencytrack_notification_rule_team" "test" {
   rule = dependencytrack_notification_rule.test.uuid
   team = dependencytrack_team.test.id
 }
-`, suffix, suffix, suffix)
+`, suffix, publisherClass, suffix, suffix)
 }
 
 func TestAccNotificationRuleTeamResource_MultipleTeams(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAccNotificationRuleTeamResource_MultipleTeams(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create with multiple teams
 			{
-				Config: testAccNotificationRuleTeamResourceConfigMultiple(suffix),
+				Config: testAccNotificationRuleTeamResourceConfigMultiple(suffix, testAccEmailPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule_team.test1",
@@ -104,11 +104,11 @@ func TestAccNotificationRuleTeamResource_MultipleTeams(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleTeamResourceConfigMultiple(suffix string) string {
+func testAccNotificationRuleTeamResourceConfigMultiple(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Email Publisher for Multiple Teams %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.SendMailPublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
   description        = "Test email publisher for multiple team notifications"
 }
@@ -140,5 +140,5 @@ resource "dependencytrack_notification_rule_team" "test2" {
   rule = dependencytrack_notification_rule.test.uuid
   team = dependencytrack_team.test2.id
 }
-`, suffix, suffix, suffix, suffix)
+`, suffix, publisherClass, suffix, suffix, suffix)
 }

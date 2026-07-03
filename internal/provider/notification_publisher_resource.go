@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -41,15 +43,71 @@ type NotificationPublisherResourceModel struct {
 	DefaultPublisher types.Bool   `tfsdk:"default_publisher"`
 }
 
-// NotificationPublisher represents the API model.
+// NotificationPublisher represents the API model. It doubles as the request
+// body on DT v4 and as the response shape on both major versions: v4 servers
+// populate publisherClass, while v5 servers populate extensionName instead
+// (see class()). v5 requests use notificationPublisherV5Request.
 type NotificationPublisher struct {
 	UUID             uuid.UUID `json:"uuid,omitempty"`
 	Name             string    `json:"name"`
 	Description      string    `json:"description,omitempty"`
 	PublisherClass   string    `json:"publisherClass"`
+	ExtensionName    string    `json:"extensionName,omitempty"`
 	Template         string    `json:"template,omitempty"`
 	TemplateMimeType string    `json:"templateMimeType"`
 	DefaultPublisher bool      `json:"defaultPublisher,omitempty"`
+}
+
+// class returns the value carried by the publisher_class Terraform attribute:
+// the v5 extension name when the server returned one, otherwise the v4 fully
+// qualified publisher class name.
+func (p NotificationPublisher) class() string {
+	if p.ExtensionName != "" {
+		return p.ExtensionName
+	}
+	return p.PublisherClass
+}
+
+// notificationPublisherV5Request is the request body accepted by DT v5's
+// notification publisher endpoints (hyades-apiserver's
+// Create/UpdateNotificationPublisherRequest DTOs). Unlike v4, v5 identifies
+// the publisher implementation by extensionName rather than publisherClass,
+// rejects create bodies carrying a uuid, and requires the uuid on update.
+type notificationPublisherV5Request struct {
+	UUID             *uuid.UUID `json:"uuid,omitempty"` // update only
+	Name             string     `json:"name"`
+	ExtensionName    string     `json:"extensionName"`
+	Description      string     `json:"description,omitempty"`
+	Template         string     `json:"template,omitempty"`
+	TemplateMimeType string     `json:"templateMimeType"`
+}
+
+// warnOnPublisherClassVersionMismatch appends a warning diagnostic when the
+// configured publisher_class value does not match the naming convention of
+// the server's major version: DT v4 identifies publishers by fully qualified
+// Java class name (e.g. org.dependencytrack.notification.publisher.WebhookPublisher),
+// while DT v5 identifies them by short extension name (e.g. "webhook", "email").
+func warnOnPublisherClassVersionMismatch(diags *diag.Diagnostics, isV5 bool, class string) {
+	looksLikeFQCN := strings.Contains(class, ".")
+
+	switch {
+	case isV5 && looksLikeFQCN:
+		diags.AddAttributeWarning(
+			path.Root("publisher_class"),
+			"Publisher class looks like a Dependency-Track v4 class name",
+			fmt.Sprintf("The configured publisher_class %q looks like a fully qualified Java class name, "+
+				"but the server is running Dependency-Track v5, which identifies notification publishers "+
+				"by extension name (e.g. \"webhook\" or \"email\"). The server will likely reject this value.", class),
+		)
+	case !isV5 && !looksLikeFQCN:
+		diags.AddAttributeWarning(
+			path.Root("publisher_class"),
+			"Publisher class looks like a Dependency-Track v5 extension name",
+			fmt.Sprintf("The configured publisher_class %q looks like a v5 extension name, "+
+				"but the server is running Dependency-Track v4, which identifies notification publishers "+
+				"by fully qualified Java class name (e.g. \"org.dependencytrack.notification.publisher.WebhookPublisher\").", class),
+		)
+	}
 }
 
 func (r *NotificationPublisherResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -85,7 +143,7 @@ func (r *NotificationPublisherResource) Schema(ctx context.Context, req resource
 				Computed:            true,
 			},
 			"publisher_class": schema.StringAttribute{
-				MarkdownDescription: "The fully qualified class name of the publisher implementation (e.g., org.dependencytrack.notification.publisher.WebhookPublisher)",
+				MarkdownDescription: "The publisher implementation to use. On Dependency-Track v4 this is a fully qualified class name (e.g., org.dependencytrack.notification.publisher.WebhookPublisher); on v5 it is an extension name (e.g., webhook, email)",
 				Required:            true,
 			},
 			"template": schema.StringAttribute{
@@ -133,6 +191,8 @@ func (r *NotificationPublisherResource) Create(ctx context.Context, req resource
 		return
 	}
 
+	warnOnPublisherClassVersionMismatch(&resp.Diagnostics, r.data.IsV5(), data.PublisherClass.ValueString())
+
 	publisher := NotificationPublisher{
 		Name:             data.Name.ValueString(),
 		PublisherClass:   data.PublisherClass.ValueString(),
@@ -157,7 +217,7 @@ func (r *NotificationPublisherResource) Create(ctx context.Context, req resource
 	data.UUID = types.StringValue(createdPublisher.UUID.String())
 	data.Name = types.StringValue(createdPublisher.Name)
 	data.Description = types.StringValue(createdPublisher.Description)
-	data.PublisherClass = types.StringValue(createdPublisher.PublisherClass)
+	data.PublisherClass = types.StringValue(createdPublisher.class())
 	data.Template = types.StringValue(createdPublisher.Template)
 	data.TemplateMimeType = types.StringValue(createdPublisher.TemplateMimeType)
 	data.DefaultPublisher = types.BoolValue(createdPublisher.DefaultPublisher)
@@ -197,7 +257,7 @@ func (r *NotificationPublisherResource) Read(ctx context.Context, req resource.R
 	data.UUID = types.StringValue(publisher.UUID.String())
 	data.Name = types.StringValue(publisher.Name)
 	data.Description = types.StringValue(publisher.Description)
-	data.PublisherClass = types.StringValue(publisher.PublisherClass)
+	data.PublisherClass = types.StringValue(publisher.class())
 	data.Template = types.StringValue(publisher.Template)
 	data.TemplateMimeType = types.StringValue(publisher.TemplateMimeType)
 	data.DefaultPublisher = types.BoolValue(publisher.DefaultPublisher)
@@ -219,6 +279,8 @@ func (r *NotificationPublisherResource) Update(ctx context.Context, req resource
 		resp.Diagnostics.AddError("Invalid UUID", fmt.Sprintf("Unable to parse UUID: %s", err))
 		return
 	}
+
+	warnOnPublisherClassVersionMismatch(&resp.Diagnostics, r.data.IsV5(), data.PublisherClass.ValueString())
 
 	publisher := NotificationPublisher{
 		UUID:             publisherUUID,
@@ -245,7 +307,7 @@ func (r *NotificationPublisherResource) Update(ctx context.Context, req resource
 	data.UUID = types.StringValue(updatedPublisher.UUID.String())
 	data.Name = types.StringValue(updatedPublisher.Name)
 	data.Description = types.StringValue(updatedPublisher.Description)
-	data.PublisherClass = types.StringValue(updatedPublisher.PublisherClass)
+	data.PublisherClass = types.StringValue(updatedPublisher.class())
 	data.Template = types.StringValue(updatedPublisher.Template)
 	data.TemplateMimeType = types.StringValue(updatedPublisher.TemplateMimeType)
 	data.DefaultPublisher = types.BoolValue(updatedPublisher.DefaultPublisher)
@@ -297,8 +359,21 @@ func (r *NotificationPublisherResource) ImportState(ctx context.Context, req res
 // Helper methods for API calls
 
 func (r *NotificationPublisherResource) createPublisher(ctx context.Context, publisher NotificationPublisher) (NotificationPublisher, error) {
+	// v4 accepts the publisher model as-is; v5 expects extensionName instead
+	// of publisherClass and no uuid in the create body.
+	var body any = publisher
+	if r.data.IsV5() {
+		body = notificationPublisherV5Request{
+			Name:             publisher.Name,
+			ExtensionName:    publisher.PublisherClass,
+			Description:      publisher.Description,
+			Template:         publisher.Template,
+			TemplateMimeType: publisher.TemplateMimeType,
+		}
+	}
+
 	var result NotificationPublisher
-	if err := r.data.API().Do(ctx, http.MethodPut, "/api/v1/notification/publisher", publisher, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPut, "/api/v1/notification/publisher", body, &result); err != nil {
 		return NotificationPublisher{}, err
 	}
 
@@ -322,8 +397,23 @@ func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publis
 }
 
 func (r *NotificationPublisherResource) updatePublisher(ctx context.Context, publisher NotificationPublisher) (NotificationPublisher, error) {
+	// v4 accepts the publisher model as-is; v5 expects extensionName instead
+	// of publisherClass, and requires the uuid in the update body.
+	var body any = publisher
+	if r.data.IsV5() {
+		publisherUUID := publisher.UUID
+		body = notificationPublisherV5Request{
+			UUID:             &publisherUUID,
+			Name:             publisher.Name,
+			ExtensionName:    publisher.PublisherClass,
+			Description:      publisher.Description,
+			Template:         publisher.Template,
+			TemplateMimeType: publisher.TemplateMimeType,
+		}
+	}
+
 	var result NotificationPublisher
-	if err := r.data.API().Do(ctx, http.MethodPost, "/api/v1/notification/publisher", publisher, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPost, "/api/v1/notification/publisher", body, &result); err != nil {
 		return NotificationPublisher{}, err
 	}
 

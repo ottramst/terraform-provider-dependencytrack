@@ -47,7 +47,7 @@ resource "dependencytrack_notification_publisher" "email" {
 ### Required
 
 - `name` (String) The name of the notification publisher
-- `publisher_class` (String) The fully qualified class name of the publisher implementation (e.g., org.dependencytrack.notification.publisher.WebhookPublisher)
+- `publisher_class` (String) The publisher implementation to use. On Dependency-Track v4 this is a fully qualified class name (e.g., org.dependencytrack.notification.publisher.WebhookPublisher); on v5 it is an extension name (e.g., webhook, email)
 - `template_mime_type` (String) The MIME type of the template (e.g., application/json, text/plain)
 
 ### Optional

@@ -72,7 +72,7 @@ func (d *NotificationPublisherDataSource) Schema(ctx context.Context, req dataso
 				Computed:            true,
 			},
 			"publisher_class": schema.StringAttribute{
-				MarkdownDescription: "The fully qualified class name of the publisher implementation",
+				MarkdownDescription: "The publisher implementation: a fully qualified class name on Dependency-Track v4, or an extension name on v5",
 				Computed:            true,
 			},
 			"template": schema.StringAttribute{
@@ -186,7 +186,7 @@ func (d *NotificationPublisherDataSource) Read(ctx context.Context, req datasour
 	data.UUID = types.StringValue(publisher.UUID.String())
 	data.Name = types.StringValue(publisher.Name)
 	data.Description = types.StringValue(publisher.Description)
-	data.PublisherClass = types.StringValue(publisher.PublisherClass)
+	data.PublisherClass = types.StringValue(publisher.class())
 	data.Template = types.StringValue(publisher.Template)
 	data.TemplateMimeType = types.StringValue(publisher.TemplateMimeType)
 	data.DefaultPublisher = types.BoolValue(publisher.DefaultPublisher)

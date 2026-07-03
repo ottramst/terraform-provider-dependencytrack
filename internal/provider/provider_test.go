@@ -83,12 +83,11 @@ func testAccPreCheckUsernamePassword(t *testing.T) {
 	}
 }
 
-// State backing testAccServerVersion below. Not yet referenced elsewhere
-// (version-gated acceptance tests land in a later task).
+// State backing testAccServerVersion below.
 var (
-	testAccServerVersionOnce  sync.Once     //nolint:unused
-	testAccServerVersionValue ServerVersion //nolint:unused
-	testAccServerVersionErr   error         //nolint:unused
+	testAccServerVersionOnce  sync.Once
+	testAccServerVersionValue ServerVersion
+	testAccServerVersionErr   error
 )
 
 // testAccServerVersion resolves the Dependency-Track server version under
@@ -97,9 +96,15 @@ var (
 // the version), and otherwise queries {DEPENDENCYTRACK_ENDPOINT}/api/version
 // directly. It calls t.Fatal if the version cannot be resolved.
 //
-//nolint:unused // not yet called; version-gated acceptance tests land in a later task
+// Like resource.Test, it skips the test when TF_ACC is unset, so helpers that
+// consult the server version (e.g. testAccPublisherClass) can be called
+// before resource.Test without breaking plain `go test` runs.
 func testAccServerVersion(t *testing.T) ServerVersion {
 	t.Helper()
+
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("Acceptance tests skipped unless env 'TF_ACC' set")
+	}
 
 	testAccServerVersionOnce.Do(func() {
 		if v := os.Getenv("DEPENDENCYTRACK_SERVER_VERSION"); v != "" {
@@ -136,6 +141,34 @@ func testAccServerVersion(t *testing.T) ServerVersion {
 	}
 
 	return testAccServerVersionValue
+}
+
+// testAccPublisherClass returns a webhook publisher_class value valid for the
+// server under test: Dependency-Track v4 identifies notification publishers
+// by fully qualified Java class name, while v5 identifies them by extension
+// name (the v5.0.2 default publishers list "console", "email", "jira",
+// "kafka", "mattermost", "msteams", "slack", "webex" and "webhook").
+func testAccPublisherClass(t *testing.T) string {
+	t.Helper()
+
+	if testAccServerVersion(t).IsV5() {
+		return "webhook"
+	}
+	return "org.dependencytrack.notification.publisher.WebhookPublisher"
+}
+
+// testAccEmailPublisherClass returns an email publisher_class value valid for
+// the server under test. Notification rule team subscriptions require an
+// email publisher on Dependency-Track v4 (other publishers are rejected with
+// HTTP 406 "Team subscriptions are only possible on notification rules with
+// EMAIL publisher").
+func testAccEmailPublisherClass(t *testing.T) string {
+	t.Helper()
+
+	if testAccServerVersion(t).IsV5() {
+		return "email"
+	}
+	return "org.dependencytrack.notification.publisher.SendMailPublisher"
 }
 
 // testAccSkipUnlessV4 skips the current test unless the server under test is

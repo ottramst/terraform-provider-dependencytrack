@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -10,13 +11,14 @@ import (
 )
 
 func TestAccNotificationPublisherResource(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccNotificationPublisherResourceConfig(),
+				Config: testAccNotificationPublisherResourceConfig(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test",
@@ -31,7 +33,7 @@ func TestAccNotificationPublisherResource(t *testing.T) {
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test",
 						tfjsonpath.New("publisher_class"),
-						knownvalue.StringExact("org.dependencytrack.notification.publisher.WebhookPublisher"),
+						knownvalue.StringExact(publisherClass),
 					),
 				},
 			},
@@ -43,7 +45,7 @@ func TestAccNotificationPublisherResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: testAccNotificationPublisherResourceConfigUpdated(),
+				Config: testAccNotificationPublisherResourceConfigUpdated(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test",
@@ -62,43 +64,44 @@ func TestAccNotificationPublisherResource(t *testing.T) {
 	})
 }
 
-func testAccNotificationPublisherResourceConfig() string {
-	return testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherResourceConfig(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Webhook Publisher"
   description        = "A test webhook notification publisher"
-  publisher_class    = "org.dependencytrack.notification.publisher.WebhookPublisher"
+  publisher_class    = %q
   template_mime_type = "application/json"
   template           = "{\"content\": \"test\"}"
 }
-`
+`, publisherClass)
 }
 
-func testAccNotificationPublisherResourceConfigUpdated() string {
-	return testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherResourceConfigUpdated(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Webhook Publisher Updated"
   description        = "Updated description"
-  publisher_class    = "org.dependencytrack.notification.publisher.WebhookPublisher"
+  publisher_class    = %q
   template_mime_type = "application/json"
   template           = "{\"content\": \"updated test\"}"
 }
-`
+`, publisherClass)
 }
 
 func TestAccNotificationPublisherResource_Minimal(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create with minimal configuration
 			{
-				Config: testAccNotificationPublisherResourceConfigMinimal(),
+				Config: testAccNotificationPublisherResourceConfigMinimal(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test_minimal",
 						tfjsonpath.New("name"),
-						knownvalue.StringExact("Test Console Publisher"),
+						knownvalue.StringExact("Test Minimal Publisher"),
 					),
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test_minimal",
@@ -111,12 +114,12 @@ func TestAccNotificationPublisherResource_Minimal(t *testing.T) {
 	})
 }
 
-func testAccNotificationPublisherResourceConfigMinimal() string {
-	return testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherResourceConfigMinimal(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test_minimal" {
-  name               = "Test Console Publisher"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  name               = "Test Minimal Publisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
-`
+`, publisherClass)
 }

@@ -11,17 +11,9 @@ on:
 jobs:
   generate:
     uses: ./.github/workflows/generate.yml
-    with:
-      go-version: 1.24
   lint:
     uses: ./.github/workflows/lint.yml
-    with:
-      go-version: 1.24
   build:
     uses: ./.github/workflows/build.yml
-    with:
-      go-version: 1.24
   test:
     uses: ./.github/workflows/test.yml
-    with:
-      go-version: 1.24

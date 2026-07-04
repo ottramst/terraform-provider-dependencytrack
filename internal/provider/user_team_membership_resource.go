@@ -195,6 +195,10 @@ func (r *UserTeamMembershipResource) Delete(ctx context.Context, req resource.De
 	// Remove team from user via API
 	err = r.removeTeamFromUser(ctx, data.Username.ValueString(), teamUUID)
 	if err != nil {
+		// The user or team being gone means there is nothing left to delete.
+		if isNotFound(err) {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove team from user, got error: %s", err))
 		return
 	}

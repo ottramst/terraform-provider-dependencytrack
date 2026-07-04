@@ -34,6 +34,7 @@ ENHANCEMENTS:
 * resource/project_property: Emits a warning when the `ENCRYPTEDSTRING` type is used against v5, which does not support it
 * resource/repository: `password` is treated as write-only and preserved from state (Dependency-Track never returns it); on v5 it is the name of an existing secret, on v4 it is the literal password. `authentication_required` is always sent with a concrete value
 * resource/tag: Tag names are matched case-insensitively and the configured value is preserved in state, so mixed-case input no longer drifts against Dependency-Track's lowercased storage
+* resource/project_policy, resource/user_team_membership: Deleting an association that is already gone on the server (removed out-of-band or by a concurrent destroy) is treated as already deleted instead of failing
 
 NOTES:
 

@@ -203,6 +203,10 @@ func (r *ProjectPolicyResource) Delete(ctx context.Context, req resource.DeleteR
 
 	_, err = r.data.Client.Policy.DeleteProject(ctx, policyUUID, projectUUID)
 	if err != nil {
+		// The policy or project being gone means there is nothing left to delete.
+		if isNotFound(err) {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove project from policy, got error: %s", err))
 		return
 	}

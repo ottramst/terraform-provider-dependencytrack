@@ -1,3 +1,47 @@
+## v0.5.0
+
+FEATURES:
+
+* **New Resource:** `dependencytrack_repository` - Manage package repositories in Dependency-Track
+* **New Resource:** `dependencytrack_oidc_group` - Manage OpenID Connect groups
+* **New Resource:** `dependencytrack_oidc_group_mapping` - Map OpenID Connect groups to teams
+* **New Resource:** `dependencytrack_ldap_mapping` - Map LDAP distinguished names to teams
+* **New Resource:** `dependencytrack_tag` - Manage portfolio tags
+* **New Resource:** `dependencytrack_policy_tag` - Scope a policy to projects by tag
+* **New Resource:** `dependencytrack_notification_rule_tag` - Scope a notification rule to projects by tag
+* **New Resource:** `dependencytrack_license` - Manage custom licenses
+* **New Resource:** `dependencytrack_license_group` - Manage license groups
+* **New Resource:** `dependencytrack_license_group_license` - Manage license-group membership
+* **New Resource:** `dependencytrack_project_property` - Manage project properties
+* **New Data Source:** `dependencytrack_repositories` - List package repositories
+* **New Data Source:** `dependencytrack_oidc_group` - Look up an OpenID Connect group
+* **New Data Source:** `dependencytrack_tags` - List portfolio tags
+* **New Data Source:** `dependencytrack_license` - Look up a license by license ID or UUID
+* **New Data Source:** `dependencytrack_licenses` - List all licenses
+* **New Data Source:** `dependencytrack_license_group` - Look up a license group
+* **New Data Source:** `dependencytrack_portfolio_metrics` - Read the latest portfolio-wide metrics snapshot
+* **New Data Source:** `dependencytrack_project_metrics` - Read the latest metrics snapshot for a project
+* **New Data Source:** `dependencytrack_project_violations` - List a project's policy violations
+* **New Data Source:** `dependencytrack_project_findings` - List a project's vulnerability findings
+
+ENHANCEMENTS:
+
+* provider: Added support for Dependency-Track v5 (tested against 5.0.2) alongside v4 (tested against 4.14.2). The server's major version is detected automatically at configure time by probing the unauthenticated `GET /api/version` endpoint; there is no version attribute to set, and configuration fails with an actionable error if the version cannot be detected
+* provider: List and read operations paginate correctly on Dependency-Track v5, which caps list page size at 100, including client-go list methods that do not report a total count
+* resource/notification_publisher: `publisher_class` accepts a fully qualified Java class name on v4 and a publisher extension name (e.g. `webhook`, `email`) on v5, and warns when the value's shape does not match the detected server
+* resource/notification_rule: `publisher_config` no longer drifts on Dependency-Track v5, which stores it as JSONB and may re-serialize it or fill in publisher defaults; semantically equal JSON is treated as unchanged (consistent behavior on Dependency-Track >= 4.14)
+* resource/project: The deprecated `author` field is preserved from configuration in state on v5, where the API accepts it on write but never returns it on read
+* resource/project_property: Emits a warning when the `ENCRYPTEDSTRING` type is used against v5, which does not support it
+* resource/repository: `password` is treated as write-only and preserved from state (Dependency-Track never returns it); on v5 it is the name of an existing secret, on v4 it is the literal password. `authentication_required` is always sent with a concrete value
+* resource/tag: Tag names are normalized to lowercase to match Dependency-Track's storage, avoiding drift from mixed-case input
+
+NOTES:
+
+* deps: Bumped `github.com/DependencyTrack/client-go` to v0.19.0, `terraform-plugin-framework` to v1.19.0, `terraform-plugin-go` to v0.31.0, and `terraform-plugin-testing` to v1.16.0; the Go directive is now 1.25.8
+* ci: The acceptance test matrix now runs against Dependency-Track 4.14.2 and 5.0.2 (both required) across Terraform 1.9, 1.12, and 1.15
+* test: Added a `docker-compose.v5.yml` stack (Dependency-Track 5.0.2 on PostgreSQL 18) for local v5 testing; `scripts/init_dtrack.go` now polls `/api/version` for readiness, since v5 moved its health endpoints to a separate management port
+* No breaking changes; no state migrations are required to adopt this release
+
 ## v0.4.1
 
 BUG FIXES:

@@ -10,18 +10,41 @@ This provider includes:
 
 ## Features
 
-- **Team Management**: Manage teams, team permissions, and team API keys
-- **User Management**: Manage managed users, user permissions, and user team memberships
-- **Project Management**: Manage projects and project ACL mappings
-- **Policy Management**: Manage policies with conditions
-- **Configuration**: Manage Dependency-Track configuration properties
+- **Teams & API keys**: Manage teams, team permissions, and team API keys
+- **Users & access control**: Manage managed users, user permissions, user team memberships, OIDC groups and mappings, and LDAP mappings
+- **Projects**: Manage projects, project properties, ACL mappings, and project-to-policy assignments
+- **Policies**: Manage policies with conditions and scope them to projects by tag
+- **Notifications**: Manage notification publishers and rules, and scope rules by project, team, or tag
+- **Licenses**: Manage custom licenses, license groups, and license-group membership
+- **Repositories, tags & configuration**: Manage package repositories, portfolio tags, and configuration properties
+- **Metrics & findings**: Read portfolio and project metrics, project findings, and policy violations via data sources
+- **Dependency-Track v4 and v5**: Runtime version auto-detection with version-aware behavior (see [compatibility](#dependency-track-version-compatibility) below)
 
-For detailed documentation on all resources and data sources, see the [docs/](docs/) directory.
+For the complete list of resources and data sources with detailed documentation, see the [docs/](docs/) directory.
+
+## Dependency-Track version compatibility
+
+The provider supports both current Dependency-Track major release lines. Acceptance tests run in CI against **Dependency-Track 4.14.2** and **5.0.2** (both legs are required to pass) across Terraform 1.9, 1.12, and 1.15.
+
+At configure time the provider makes an unauthenticated `GET {endpoint}/api/version` request to detect the server's major version and adapt version-dependent behavior automatically. There is no version attribute to set. If that probe fails — an unreachable endpoint, a proxy in the way, or an unparseable version string — provider configuration fails with an actionable error rather than silently guessing a version.
+
+A handful of attributes behave differently depending on the detected version:
+
+| Area | Dependency-Track v4 | Dependency-Track v5 |
+| --- | --- | --- |
+| `notification_publisher.publisher_class` | Fully qualified Java class name (e.g. `org.dependencytrack.notification.publisher.WebhookPublisher`) | Extension name (e.g. `webhook`, `email`). The provider warns when the value's shape does not match the detected server. |
+| `notification_rule.publisher_config` | Preserved as configured | Stored as JSONB and may be re-serialized or have publisher defaults filled in; the provider treats semantically equal JSON as unchanged to avoid perpetual drift |
+| `project.author` | Returned on read | Deprecated: accepted on write but never returned; the provider preserves the configured value in state |
+| `project_property.type = ENCRYPTEDSTRING` | Supported | Rejected by the server; the provider emits a warning |
+| `config_property.type = ENCRYPTEDSTRING` | Exists | v5 exposes no `ENCRYPTEDSTRING` config properties |
+| `repository.password` | Literal password (write-only; never read back, preserved from state) | Name of an existing Dependency-Track secret (write-only; never read back, preserved from state) |
+| Team / user permissions | Full v4 permission set (e.g. `VIEW_BADGES`) | Permission names are passed through verbatim; the valid set is defined by the server and can differ between major versions |
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.24
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0 (protocol 6; CI covers 1.9, 1.12, and 1.15)
+- [Go](https://golang.org/doc/install) >= 1.25 (only required to build the provider from source)
+- [OWASP Dependency-Track](https://dependencytrack.org/) 4.14.x or 5.0.x (see [compatibility](#dependency-track-version-compatibility))
 
 ## Building The Provider
 
@@ -65,14 +88,20 @@ To generate or update documentation, run `make generate`.
 
 ### Running Acceptance Tests
 
-In order to run the full suite of acceptance tests, you need to set the following environment variables:
+Acceptance tests require a running Dependency-Track instance. A local stack is provided for both supported major versions: `docker-compose.yml` (v4) and `docker-compose.v5.yml` (v5).
 
 ```shell
-export DEPENDENCYTRACK_ENDPOINT="https://dtrack.example.com"
-export DEPENDENCYTRACK_API_KEY="your-api-key-here"
+# Start a local Dependency-Track (use docker-compose.v5.yml for v5)
+docker compose up -d
+
+# Initialize it and capture an API key (waits for /api/version to respond)
+export DEPENDENCYTRACK_API_KEY="$(go run scripts/init_dtrack.go)"
+export DEPENDENCYTRACK_ENDPOINT="http://localhost:8081"
+export DEPENDENCYTRACK_USERNAME="admin"
+export DEPENDENCYTRACK_PASSWORD="admin123"
 ```
 
-Then run the acceptance tests:
+Both API key and username/password variables should be set, since different tests exercise different authentication methods. Then run the acceptance tests:
 
 ```shell
 make testacc

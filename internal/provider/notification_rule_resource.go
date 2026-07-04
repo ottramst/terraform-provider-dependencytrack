@@ -320,14 +320,14 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	rule, err := r.getRule(ctx, ruleUUID)
+	rule, found, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
-		if isNotFound(err) {
-			// Rule doesn't exist anymore, remove from state
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read notification rule, got error: %s", err))
+		return
+	}
+	if !found {
+		// Rule doesn't exist anymore, remove from state
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -555,20 +555,26 @@ func (r *NotificationRuleResource) createRule(ctx context.Context, rule Notifica
 	return result, nil
 }
 
-func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, error) {
+// getRule lists all notification rules and returns the one matching ruleUUID.
+// The rule endpoint has no get-by-uuid variant, so a missing rule is reported
+// via found=false (not an error): the list call itself succeeds, so there is
+// no HTTP 404 for isNotFound to key off, and callers rely on found to decide
+// whether to remove the resource (Read) or treat it as already deleted
+// (deleteRule).
+func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, bool, error) {
 	rules, err := apiGetAllPages[NotificationRule](ctx, r.data.API(), "/api/v1/notification/rule", nil)
 	if err != nil {
-		return NotificationRule{}, err
+		return NotificationRule{}, false, err
 	}
 
 	// Find the rule by UUID
 	for _, rule := range rules {
 		if rule.UUID == ruleUUID {
-			return rule, nil
+			return rule, true, nil
 		}
 	}
 
-	return NotificationRule{}, fmt.Errorf("notification rule not found: %s", ruleUUID)
+	return NotificationRule{}, false, nil
 }
 
 func (r *NotificationRuleResource) updateRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
@@ -582,13 +588,13 @@ func (r *NotificationRuleResource) updateRule(ctx context.Context, rule Notifica
 
 func (r *NotificationRuleResource) deleteRule(ctx context.Context, ruleUUID uuid.UUID) error {
 	// First, get the full rule object - DELETE requires complete object with all required fields
-	rule, err := r.getRule(ctx, ruleUUID)
+	rule, found, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
-		// If rule doesn't exist, consider it already deleted
-		if isNotFound(err) {
-			return nil
-		}
 		return err
+	}
+	// If rule doesn't exist, consider it already deleted
+	if !found {
+		return nil
 	}
 
 	// DELETE requires the rule object in the body with all required fields

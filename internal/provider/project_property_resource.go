@@ -110,6 +110,12 @@ func (r *ProjectPropertyResource) Schema(ctx context.Context, req resource.Schem
 				Computed:            true,
 				MarkdownDescription: "The description of the property. Dependency-Track only sets the description when the property is created and ignores it on update, so changing this forces a new resource to be created.",
 				PlanModifiers: []planmodifier.String{
+					// Carry the prior description into the plan when it is left
+					// unset (Optional+Computed): without this the framework
+					// plans an unknown value, and because description also
+					// forces replacement, an in-place value update would trigger
+					// a spurious resource replacement.
+					stringplanmodifier.UseStateForUnknown(),
 					stringplanmodifier.RequiresReplace(),
 				},
 			},

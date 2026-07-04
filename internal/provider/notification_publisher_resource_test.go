@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -122,4 +123,78 @@ resource "dependencytrack_notification_publisher" "test_minimal" {
   template_mime_type = "text/plain"
 }
 `, publisherClass)
+}
+
+// TestAccNotificationPublisherResource_RecreateAfterExternalDelete exercises
+// the I2 fix: getPublisher reports a missing publisher via found=false (there
+// is no get-by-uuid endpoint, so a list-based getter can't surface an HTTP
+// 404), and Read must translate that into RemoveResource so a subsequent apply
+// recreates the resource. Step 2 deletes the publisher out-of-band and re-runs
+// the same config; the mid-step refresh must silently drop it from state and
+// plan a create. With the old unreachable isNotFound check the refresh would
+// hard-error instead.
+func TestAccNotificationPublisherResource_RecreateAfterExternalDelete(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
+	const name = "Test Publisher Recreate"
+	config := testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
+resource "dependencytrack_notification_publisher" "recreate" {
+  name               = %q
+  publisher_class    = %q
+  template_mime_type = "application/json"
+  template           = "{\"content\": \"test\"}"
+}
+`, name, publisherClass)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_publisher.recreate",
+						tfjsonpath.New("uuid"),
+						knownvalue.NotNull(),
+					),
+				},
+			},
+			{
+				PreConfig: func() { testAccDeleteNotificationPublisherByName(t, name) },
+				Config:    config,
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_publisher.recreate",
+						tfjsonpath.New("name"),
+						knownvalue.StringExact(name),
+					),
+				},
+			},
+		},
+	})
+}
+
+// testAccDeleteNotificationPublisherByName deletes the notification publisher
+// with the given name directly via the API, simulating an out-of-band deletion.
+func testAccDeleteNotificationPublisherByName(t *testing.T, name string) {
+	t.Helper()
+
+	var publishers []struct {
+		UUID string `json:"uuid"`
+		Name string `json:"name"`
+	}
+	if code := testAccAPIDo(t, http.MethodGet, "/api/v1/notification/publisher?pageSize=100", nil, &publishers); code < 200 || code >= 300 {
+		t.Fatalf("list notification publishers: status %d", code)
+	}
+
+	for _, p := range publishers {
+		if p.Name == name {
+			if code := testAccAPIDo(t, http.MethodDelete, "/api/v1/notification/publisher/"+p.UUID, nil, nil); code < 200 || code >= 300 {
+				t.Fatalf("delete notification publisher %s: status %d", p.UUID, code)
+			}
+			return
+		}
+	}
+
+	t.Fatalf("notification publisher %q not found for external delete", name)
 }

@@ -138,17 +138,19 @@ func (d *LicenseGroupDataSource) Read(ctx context.Context, req datasource.ReadRe
 }
 
 // findGroupByName returns the license group with the given name, or nil if
-// none matches. The client-go GetAll endpoint returns every license group in a
-// single (unpaginated) response, so a single call suffices.
+// none matches. client-go's LicenseGroupService.GetAll ignores its PageOptions
+// and issues a bare GET on /api/v1/licenseGroup, so on Dependency-Track v5
+// (which paginates that endpoint and caps page size at 100) it would only ever
+// see the first 100 groups. Page through the endpoint directly instead.
 func (d *LicenseGroupDataSource) findGroupByName(ctx context.Context, name string) (*dtrack.LicenseGroup, error) {
-	page, err := d.data.Client.LicenseGroup.GetAll(ctx, dtrack.PageOptions{}, dtrack.SortOptions{})
+	groups, err := apiGetAllPages[dtrack.LicenseGroup](ctx, d.data.API(), "/api/v1/licenseGroup", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range page.Items {
-		if page.Items[i].Name == name {
-			return &page.Items[i], nil
+	for i := range groups {
+		if groups[i].Name == name {
+			return &groups[i], nil
 		}
 	}
 

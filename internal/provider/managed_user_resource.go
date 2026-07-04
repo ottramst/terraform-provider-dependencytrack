@@ -177,9 +177,14 @@ func (r *ManagedUserResource) Read(ctx context.Context, req resource.ReadRequest
 	}
 
 	// Get user from API
-	user, err := r.getManagedUser(ctx, data.Username.ValueString())
+	user, found, err := r.getManagedUser(ctx, data.Username.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read managed user, got error: %s", err))
+		return
+	}
+	if !found {
+		// User doesn't exist anymore, remove from state
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -273,18 +278,23 @@ func (r *ManagedUserResource) ImportState(ctx context.Context, req resource.Impo
 
 // Helper methods for API calls
 
-func (r *ManagedUserResource) getManagedUser(ctx context.Context, username string) (*dtrack.ManagedUser, error) {
+// getManagedUser lists all managed users and returns the one matching
+// username. The managed user endpoint has no get-by-name variant, so a missing
+// user is reported via found=false (not an error): the list call itself
+// succeeds, so there is no HTTP 404 for isNotFound to key off, and the Read
+// path relies on found to decide whether to remove the resource.
+func (r *ManagedUserResource) getManagedUser(ctx context.Context, username string) (*dtrack.ManagedUser, bool, error) {
 	users, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Find user by username
 	for i := range users {
 		if users[i].Username == username {
-			return &users[i], nil
+			return &users[i], true, nil
 		}
 	}
 
-	return nil, fmt.Errorf("managed user not found: %s", username)
+	return nil, false, nil
 }

@@ -201,6 +201,16 @@ func (r *OIDCGroupResource) ImportState(ctx context.Context, req resource.Import
 }
 
 // findGroup lists all OIDC groups and returns the one matching groupUUID.
+//
+// GetAllGroups issues a bare GET on /api/v1/oidc/group with no pagination
+// parameters. This is safe: unlike /api/v1/licenseGroup, the OIDC group
+// endpoint is not paginated. Empirically verified against Dependency-Track
+// v5.0.2 by seeding 120 groups: a bare GET returned all 120 in a single
+// response, and pageSize/pageNumber query parameters were ignored (page 1 and
+// page 2 returned the identical full set, and no X-Total-Count header was
+// emitted). Routing this through apiGetAllPages would in fact break it — with
+// no X-Total-Count and every page returning the full (>=100-item) set, it
+// would fetch identical pages up to the safety cap and error out.
 func (r *OIDCGroupResource) findGroup(ctx context.Context, groupUUID uuid.UUID) (dtrack.OIDCGroup, bool, error) {
 	groups, err := r.data.Client.OIDC.GetAllGroups(ctx)
 	if err != nil {

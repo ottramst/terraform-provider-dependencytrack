@@ -242,14 +242,14 @@ func (r *NotificationPublisherResource) Read(ctx context.Context, req resource.R
 		return
 	}
 
-	publisher, err := r.getPublisher(ctx, publisherUUID)
+	publisher, found, err := r.getPublisher(ctx, publisherUUID)
 	if err != nil {
-		if isNotFound(err) {
-			// Publisher doesn't exist anymore, remove from state
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read notification publisher, got error: %s", err))
+		return
+	}
+	if !found {
+		// Publisher doesn't exist anymore, remove from state
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -380,20 +380,25 @@ func (r *NotificationPublisherResource) createPublisher(ctx context.Context, pub
 	return result, nil
 }
 
-func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publisherUUID uuid.UUID) (NotificationPublisher, error) {
+// getPublisher lists all notification publishers and returns the one matching
+// publisherUUID. The publisher endpoint has no get-by-uuid variant, so a
+// missing publisher is reported via found=false (not an error): the list call
+// itself succeeds, so there is no HTTP 404 for isNotFound to key off, and the
+// Read path relies on found to decide whether to remove the resource.
+func (r *NotificationPublisherResource) getPublisher(ctx context.Context, publisherUUID uuid.UUID) (NotificationPublisher, bool, error) {
 	publishers, err := apiGetAllPages[NotificationPublisher](ctx, r.data.API(), "/api/v1/notification/publisher", nil)
 	if err != nil {
-		return NotificationPublisher{}, err
+		return NotificationPublisher{}, false, err
 	}
 
 	// Find the publisher by UUID
 	for _, p := range publishers {
 		if p.UUID == publisherUUID {
-			return p, nil
+			return p, true, nil
 		}
 	}
 
-	return NotificationPublisher{}, fmt.Errorf("notification publisher not found: %s", publisherUUID)
+	return NotificationPublisher{}, false, nil
 }
 
 func (r *NotificationPublisherResource) updatePublisher(ctx context.Context, publisher NotificationPublisher) (NotificationPublisher, error) {

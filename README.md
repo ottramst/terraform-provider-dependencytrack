@@ -101,7 +101,7 @@ export DEPENDENCYTRACK_USERNAME="admin"
 export DEPENDENCYTRACK_PASSWORD="admin123"
 ```
 
-Both API key and username/password variables should be set, since different tests exercise different authentication methods. Then run the acceptance tests:
+Both API key and username/password variables should be set: the acceptance tests authenticate with the API key, and the init script needs the admin credentials to mint that key. A single test (`TestAccProviderAuth_UsernamePassword`) covers the username/password login path. Then run the acceptance tests:
 
 ```shell
 make testacc

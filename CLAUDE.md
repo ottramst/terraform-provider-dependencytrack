@@ -56,7 +56,7 @@ TF_ACC=1 go test -v -run TestAccTeamResource ./internal/provider/ -timeout 120m
 docker compose down -v
 ```
 
-The init script (`scripts/init_dtrack.go`) polls `GET /api/version` with exponential backoff (up to 20 retries) rather than the `/health` endpoints, because v5 moved health checks to a separate management port (9000) that is not exposed by the compose stacks. Both API key and username/password env vars should be set since different tests exercise different auth methods. Optionally set `DEPENDENCYTRACK_SERVER_VERSION` to skip the version probe in tests (see Test Patterns).
+The init script (`scripts/init_dtrack.go`) polls `GET /api/version` with exponential backoff (up to 20 retries) rather than the `/health` endpoints, because v5 moved health checks to a separate management port (9000) that is not exposed by the compose stacks. Both API key and username/password env vars should be set: all acceptance tests authenticate with the API key, while `TestAccProviderAuth_UsernamePassword` alone covers the username/password login path (and the init script itself needs the admin credentials to mint the API key). Optionally set `DEPENDENCYTRACK_SERVER_VERSION` to skip the version probe in tests (see Test Patterns).
 
 ## Architecture
 
@@ -81,7 +81,7 @@ The provider authenticates via API key OR username/password (mutually exclusive)
 
 Acceptance tests require a real Dependency-Track instance. Tests follow this structure:
 - `TestAcc<Resource>Resource(t)` — CRUD + import in sequential steps
-- `testAcc<Resource>ResourceConfig(...)` — generates HCL, prefixed with provider config from `testAccProviderConfigWithAPIKey()` or `testAccProviderConfigWithUsernamePassword()`
+- `testAcc<Resource>ResourceConfig(...)` — generates HCL, prefixed with provider config from `testAccProviderConfigWithAPIKey()` (all acceptance tests use API-key auth by convention; only `TestAccProviderAuth_UsernamePassword` uses `testAccProviderConfigWithUsernamePassword()`, as the sole end-to-end coverage of the username/password → `User.Login` bearer-token path)
 - PreCheck functions (`testAccPreCheckAPIKey`, `testAccPreCheckUsernamePassword`) validate env vars
 - Uses `statecheck.ExpectKnownValue` with `tfjsonpath` for assertions
 - Provider factory: `testAccProtoV6ProviderFactories`

@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccConfigPropertyResource_APIKey tests the config_property resource with API key authentication.
-func TestAccConfigPropertyResource_APIKey(t *testing.T) {
+// TestAccConfigPropertyResource tests the config_property resource.
+func TestAccConfigPropertyResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -59,14 +59,14 @@ func TestAccConfigPropertyResource_APIKey(t *testing.T) {
 	})
 }
 
-// TestAccConfigPropertyResource_EncryptedString_APIKey tests the config_property resource with an encrypted string property.
+// TestAccConfigPropertyResource_EncryptedString tests the config_property resource with an encrypted string property.
 // This test ensures that encrypted properties (ENCRYPTEDSTRING type) are handled correctly,
 // as the API returns "HiddenDecryptedPropertyPlaceholder" instead of the actual value.
 //
 // It is gated to Dependency-Track v4: v5 removed the email/smtp.password property
 // (and exposes no ENCRYPTEDSTRING config properties at all), so there is no
 // cross-version encrypted fixture to exercise.
-func TestAccConfigPropertyResource_EncryptedString_APIKey(t *testing.T) {
+func TestAccConfigPropertyResource_EncryptedString(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t); testAccSkipUnlessV4(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

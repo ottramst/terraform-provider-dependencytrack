@@ -12,6 +12,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/echoprovider"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
@@ -31,7 +35,8 @@ var testAccProtoV6ProviderFactoriesWithEcho = map[string]func() (tfprotov6.Provi
 }
 
 // testAccProviderConfigWithAPIKey returns the provider configuration block using API key authentication.
-// This explicitly tests API key authentication regardless of which environment variables are set.
+// This is the standard authentication used by all acceptance tests by convention;
+// only TestAccProviderAuth_UsernamePassword uses username/password instead.
 func testAccProviderConfigWithAPIKey() string {
 	endpoint := os.Getenv("DEPENDENCYTRACK_ENDPOINT")
 	apiKey := os.Getenv("DEPENDENCYTRACK_API_KEY")
@@ -45,7 +50,9 @@ provider "dependencytrack" {
 }
 
 // testAccProviderConfigWithUsernamePassword returns the provider configuration block using username/password authentication.
-// This explicitly tests username/password authentication regardless of which environment variables are set.
+// It is used only by TestAccProviderAuth_UsernamePassword, the sole test that
+// exercises the username/password -> User.Login bearer-token Configure() path;
+// all other acceptance tests authenticate with an API key by convention.
 func testAccProviderConfigWithUsernamePassword() string {
 	endpoint := os.Getenv("DEPENDENCYTRACK_ENDPOINT")
 	username := os.Getenv("DEPENDENCYTRACK_USERNAME")
@@ -70,7 +77,9 @@ func testAccPreCheckAPIKey(t *testing.T) {
 	}
 }
 
-// testAccPreCheckUsernamePassword checks that username/password authentication is available for acceptance tests.
+// testAccPreCheckUsernamePassword checks that username/password authentication is available.
+// It gates TestAccProviderAuth_UsernamePassword, the only test that authenticates
+// with username/password rather than an API key.
 func testAccPreCheckUsernamePassword(t *testing.T) {
 	if v := os.Getenv("DEPENDENCYTRACK_ENDPOINT"); v == "" {
 		t.Skip("DEPENDENCYTRACK_ENDPOINT must be set for acceptance tests")
@@ -81,6 +90,37 @@ func testAccPreCheckUsernamePassword(t *testing.T) {
 	if v := os.Getenv("DEPENDENCYTRACK_PASSWORD"); v == "" {
 		t.Skip("DEPENDENCYTRACK_PASSWORD must be set for username/password authentication tests")
 	}
+}
+
+// TestAccProviderAuth_UsernamePassword is the sole end-to-end coverage of the
+// provider's username/password authentication path. Configuring the provider
+// with username/password (rather than an api_key) forces Configure() to call
+// User.Login, exchanging the credentials for a bearer token used on every
+// subsequent request. All other acceptance tests authenticate with an API key
+// by convention; this test alone verifies the login path still works. It uses a
+// minimal read-only config (looking up the built-in "Administrators" team by
+// name) so it only exercises authentication, not any particular resource.
+func TestAccProviderAuth_UsernamePassword(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfigWithUsernamePassword() + `
+data "dependencytrack_team" "administrators" {
+  name = "Administrators"
+}
+`,
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"data.dependencytrack_team.administrators",
+						tfjsonpath.New("name"),
+						knownvalue.StringExact("Administrators"),
+					),
+				},
+			},
+		},
+	})
 }
 
 // State backing testAccServerVersion below.

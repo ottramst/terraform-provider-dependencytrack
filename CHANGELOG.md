@@ -40,6 +40,7 @@ NOTES:
 * deps: Bumped `github.com/DependencyTrack/client-go` to v0.19.0, `terraform-plugin-framework` to v1.19.0, `terraform-plugin-go` to v0.31.0, and `terraform-plugin-testing` to v1.16.0; the Go directive is now 1.25.8
 * ci: The acceptance test matrix now runs against Dependency-Track 4.14.2 and 5.0.2 (both required) across Terraform 1.9, 1.12, and 1.15
 * test: Added a `docker-compose.v5.yml` stack (Dependency-Track 5.0.2 on PostgreSQL 18) for local v5 testing; `scripts/init_dtrack.go` now polls `/api/version` for readiness, since v5 moved its health endpoints to a separate management port
+* test: Standardized the acceptance test suite on API-key authentication, with a single dedicated `TestAccProviderAuth_UsernamePassword` test covering the username/password login path (no user-facing change)
 * No breaking changes; no state migrations are required to adopt this release
 
 ## v0.4.1

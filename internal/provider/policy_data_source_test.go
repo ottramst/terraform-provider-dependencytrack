@@ -11,7 +11,7 @@ import (
 
 func TestAccPolicyDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -49,7 +49,7 @@ func TestAccPolicyDataSource(t *testing.T) {
 }
 
 func testAccPolicyDataSourceConfig() string {
-	return testAccProviderConfigWithUsernamePassword() + `
+	return testAccProviderConfigWithAPIKey() + `
 resource "dependencytrack_policy" "test" {
   name            = "Data Source Test Policy"
   operator        = "ALL"

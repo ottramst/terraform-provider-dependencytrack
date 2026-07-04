@@ -280,6 +280,9 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewOIDCGroupMappingResource,
 		NewLDAPMappingResource,
 		NewLicenseResource,
+		NewLicenseGroupLicenseResource,
+		NewPolicyTagResource,
+		NewNotificationRuleTagResource,
 	}
 }
 
@@ -302,6 +305,10 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewLicenseGroupDataSource,
 		NewLicenseDataSource,
 		NewLicensesDataSource,
+		NewPortfolioMetricsDataSource,
+		NewProjectMetricsDataSource,
+		NewProjectViolationsDataSource,
+		NewProjectFindingsDataSource,
 	}
 }
 

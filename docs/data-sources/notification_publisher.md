@@ -37,6 +37,6 @@ data "dependencytrack_notification_publisher" "by_name" {
 - `default_publisher` (Boolean) Whether this is a default publisher
 - `description` (String) The description of the notification publisher
 - `id` (String) The ID of the notification publisher (same as UUID)
-- `publisher_class` (String) The fully qualified class name of the publisher implementation
+- `publisher_class` (String) The publisher implementation: a fully qualified class name on Dependency-Track v4, or an extension name on v5
 - `template` (String) The template content for the notification
 - `template_mime_type` (String) The MIME type of the template

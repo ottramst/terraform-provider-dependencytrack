@@ -18,7 +18,7 @@ func TestAccNotificationRuleProjectResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccNotificationRuleProjectResourceConfig(suffix),
+				Config: testAccNotificationRuleProjectResourceConfig(suffix, testAccPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule_project.test",
@@ -48,11 +48,11 @@ func TestAccNotificationRuleProjectResource(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleProjectResourceConfig(suffix string) string {
+func testAccNotificationRuleProjectResourceConfig(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Project Association %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -75,7 +75,7 @@ resource "dependencytrack_notification_rule_project" "test" {
   rule    = dependencytrack_notification_rule.test.uuid
   project = dependencytrack_project.test.id
 }
-`, suffix, suffix, suffix)
+`, suffix, publisherClass, suffix, suffix)
 }
 
 func TestAccNotificationRuleProjectResource_MultipleProjects(t *testing.T) {
@@ -86,7 +86,7 @@ func TestAccNotificationRuleProjectResource_MultipleProjects(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create with multiple projects
 			{
-				Config: testAccNotificationRuleProjectResourceConfigMultiple(suffix),
+				Config: testAccNotificationRuleProjectResourceConfigMultiple(suffix, testAccPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule_project.test1",
@@ -104,11 +104,11 @@ func TestAccNotificationRuleProjectResource_MultipleProjects(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleProjectResourceConfigMultiple(suffix string) string {
+func testAccNotificationRuleProjectResourceConfigMultiple(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Multiple Projects %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -141,5 +141,5 @@ resource "dependencytrack_notification_rule_project" "test2" {
   rule    = dependencytrack_notification_rule.test.uuid
   project = dependencytrack_project.test2.id
 }
-`, suffix, suffix, suffix, suffix)
+`, suffix, publisherClass, suffix, suffix, suffix)
 }

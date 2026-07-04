@@ -17,13 +17,14 @@ func randomSuffix() string {
 
 func TestAccNotificationRuleResource(t *testing.T) {
 	suffix := randomSuffix()
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
 			{
-				Config: testAccNotificationRuleResourceConfig(suffix),
+				Config: testAccNotificationRuleResourceConfig(suffix, publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test",
@@ -63,7 +64,7 @@ func TestAccNotificationRuleResource(t *testing.T) {
 			},
 			// Update and Read testing
 			{
-				Config: testAccNotificationRuleResourceConfigUpdated(suffix),
+				Config: testAccNotificationRuleResourceConfigUpdated(suffix, publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test",
@@ -90,11 +91,11 @@ func TestAccNotificationRuleResource(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleResourceConfig(suffix string) string {
+func testAccNotificationRuleResourceConfig(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Rule %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -118,14 +119,14 @@ resource "dependencytrack_notification_rule" "test" {
   notify_children       = false
   log_successful_publish = false
 }
-`, suffix, suffix)
+`, suffix, publisherClass, suffix)
 }
 
-func testAccNotificationRuleResourceConfigUpdated(suffix string) string {
+func testAccNotificationRuleResourceConfigUpdated(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Rule %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -149,7 +150,7 @@ resource "dependencytrack_notification_rule" "test" {
   notify_children       = true
   log_successful_publish = true
 }
-`, suffix, suffix)
+`, suffix, publisherClass, suffix)
 }
 
 func TestAccNotificationRuleResource_Minimal(t *testing.T) {
@@ -160,7 +161,7 @@ func TestAccNotificationRuleResource_Minimal(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create with minimal configuration
 			{
-				Config: testAccNotificationRuleResourceConfigMinimal(suffix),
+				Config: testAccNotificationRuleResourceConfigMinimal(suffix, testAccPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test_minimal",
@@ -178,11 +179,11 @@ func TestAccNotificationRuleResource_Minimal(t *testing.T) {
 	})
 }
 
-func testAccNotificationRuleResourceConfigMinimal(suffix string) string {
+func testAccNotificationRuleResourceConfigMinimal(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test_minimal" {
   name               = "Test Publisher Minimal %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -195,7 +196,7 @@ resource "dependencytrack_notification_rule" "test_minimal" {
     "NEW_VULNERABILITY"
   ]
 }
-`, suffix)
+`, suffix, publisherClass)
 }
 
 func TestAccNotificationRuleResource_WithTeams(t *testing.T) {
@@ -206,7 +207,7 @@ func TestAccNotificationRuleResource_WithTeams(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create with teams
 			{
-				Config: testAccNotificationRuleResourceConfigWithTeams(suffix),
+				Config: testAccNotificationRuleResourceConfigWithTeams(suffix, testAccPublisherClass(t)),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test_teams",
@@ -220,13 +221,23 @@ func TestAccNotificationRuleResource_WithTeams(t *testing.T) {
 }
 
 func TestAccNotificationRuleResource_WithPublisherConfig(t *testing.T) {
+	// The webhook publisher's config key differs per major version: v4 uses
+	// {"destination": ...} while v5 validates publisherConfig against the
+	// extension's JSON schema, which requires {"destinationUrl": ...}.
+	destinationKey := "destination"
+	if testAccServerVersion(t).IsV5() {
+		destinationKey = "destinationUrl"
+	}
+	publisherConfig := fmt.Sprintf(`{%q:"https://example.com/webhook"}`, destinationKey)
+	publisherConfigUpdated := fmt.Sprintf(`{%q:"https://example.com/webhook-updated"}`, destinationKey)
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create with publisher_config
 			{
-				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(`{"destination":"https://example.com/webhook"}`),
+				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(publisherConfig),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test_publisher_config",
@@ -236,7 +247,7 @@ func TestAccNotificationRuleResource_WithPublisherConfig(t *testing.T) {
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test_publisher_config",
 						tfjsonpath.New("publisher_config"),
-						knownvalue.StringExact(`{"destination":"https://example.com/webhook"}`),
+						knownvalue.StringExact(publisherConfig),
 					),
 				},
 			},
@@ -248,12 +259,12 @@ func TestAccNotificationRuleResource_WithPublisherConfig(t *testing.T) {
 			},
 			// Update publisher_config
 			{
-				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(`{"destination":"https://example.com/webhook-updated"}`),
+				Config: testAccNotificationRuleResourceConfigWithPublisherConfig(publisherConfigUpdated),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_rule.test_publisher_config",
 						tfjsonpath.New("publisher_config"),
-						knownvalue.StringExact(`{"destination":"https://example.com/webhook-updated"}`),
+						knownvalue.StringExact(publisherConfigUpdated),
 					),
 				},
 			},
@@ -282,11 +293,11 @@ resource "dependencytrack_notification_rule" "test_publisher_config" {
 `, publisherConfig)
 }
 
-func testAccNotificationRuleResourceConfigWithTeams(suffix string) string {
+func testAccNotificationRuleResourceConfigWithTeams(suffix, publisherClass string) string {
 	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test_teams" {
   name               = "Test Publisher with Teams %s"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -303,5 +314,5 @@ resource "dependencytrack_notification_rule" "test_teams" {
     "NEW_VULNERABILITY"
   ]
 }
-`, suffix, suffix)
+`, suffix, publisherClass, suffix)
 }

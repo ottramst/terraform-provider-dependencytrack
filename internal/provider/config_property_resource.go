@@ -23,7 +23,7 @@ func NewConfigPropertyResource() resource.Resource {
 
 // ConfigPropertyResource defines the resource implementation.
 type ConfigPropertyResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ConfigPropertyResourceModel describes the resource data model.
@@ -75,8 +75,9 @@ func (r *ConfigPropertyResource) Schema(ctx context.Context, req resource.Schema
 				MarkdownDescription: "The value of the config property",
 			},
 			"type": schema.StringAttribute{
-				Computed:            true,
-				MarkdownDescription: "The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID)",
+				Computed: true,
+				MarkdownDescription: "The type of the config property (BOOLEAN, INTEGER, NUMBER, STRING, ENCRYPTEDSTRING, TIMESTAMP, URL, UUID). " +
+					"The ENCRYPTEDSTRING type only exists on Dependency-Track v4; v5 exposes no ENCRYPTEDSTRING config properties.",
 			},
 			"description": schema.StringAttribute{
 				Computed:            true,
@@ -101,7 +102,7 @@ func (r *ConfigPropertyResource) Configure(ctx context.Context, req resource.Con
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *ConfigPropertyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -115,7 +116,7 @@ func (r *ConfigPropertyResource) Create(ctx context.Context, req resource.Create
 
 	// Config properties cannot be created, only adopted
 	// First, check if the property exists in Dependency-Track
-	existingProp, err := r.client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
+	existingProp, err := r.data.Client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read config property, got error: %s", err))
 		return
@@ -141,7 +142,7 @@ func (r *ConfigPropertyResource) Create(ctx context.Context, req resource.Create
 			Value:     data.Value.ValueString(),
 		}
 
-		updatedProp, err = r.client.Config.Update(ctx, updateProp)
+		updatedProp, err = r.data.Client.Config.Update(ctx, updateProp)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update config property, got error: %s", err))
 			return
@@ -178,7 +179,7 @@ func (r *ConfigPropertyResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 
-	prop, err := r.client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
+	prop, err := r.data.Client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read config property, got error: %s", err))
 		return
@@ -215,7 +216,7 @@ func (r *ConfigPropertyResource) Update(ctx context.Context, req resource.Update
 	}
 
 	// Get the current property to retrieve its type
-	existingProp, err := r.client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
+	existingProp, err := r.data.Client.Config.Get(ctx, data.GroupName.ValueString(), data.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read config property, got error: %s", err))
 		return
@@ -228,7 +229,7 @@ func (r *ConfigPropertyResource) Update(ctx context.Context, req resource.Update
 		Value:     data.Value.ValueString(),
 	}
 
-	updatedProp, err := r.client.Config.Update(ctx, updateProp)
+	updatedProp, err := r.data.Client.Config.Update(ctx, updateProp)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update config property, got error: %s", err))
 		return

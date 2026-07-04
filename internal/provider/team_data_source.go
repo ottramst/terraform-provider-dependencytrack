@@ -25,7 +25,7 @@ func NewTeamDataSource() datasource.DataSource {
 
 // TeamDataSource defines the data source implementation.
 type TeamDataSource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // TeamDataSourceModel describes the data source data model.
@@ -80,7 +80,7 @@ func (d *TeamDataSource) Configure(ctx context.Context, req datasource.Configure
 		return
 	}
 
-	d.client = providerData.Client
+	d.data = providerData
 }
 
 func (d *TeamDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -117,7 +117,7 @@ func (d *TeamDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 			return
 		}
 
-		team, err = d.client.Team.Get(ctx, teamUUID)
+		team, err = d.data.Client.Team.Get(ctx, teamUUID)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team by ID, got error: %s", err))
 			return
@@ -134,7 +134,7 @@ func (d *TeamDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		errTeamFound := errors.New("team found") // Sentinel error to break out of ForEach
 
 		err = dtrack.ForEach(func(po dtrack.PageOptions) (dtrack.Page[dtrack.Team], error) {
-			return d.client.Team.GetAll(ctx, po)
+			return d.data.Client.Team.GetAll(ctx, po)
 		}, func(t dtrack.Team) error {
 			if t.Name == searchName {
 				foundTeam = &t

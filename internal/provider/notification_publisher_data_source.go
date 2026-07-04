@@ -2,12 +2,8 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -27,11 +23,7 @@ func NewNotificationPublisherDataSource() datasource.DataSource {
 
 // NotificationPublisherDataSource defines the data source implementation.
 type NotificationPublisherDataSource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // NotificationPublisherDataSourceModel describes the data source data model.
@@ -80,7 +72,7 @@ func (d *NotificationPublisherDataSource) Schema(ctx context.Context, req dataso
 				Computed:            true,
 			},
 			"publisher_class": schema.StringAttribute{
-				MarkdownDescription: "The fully qualified class name of the publisher implementation",
+				MarkdownDescription: "The publisher implementation: a fully qualified class name on Dependency-Track v4, or an extension name on v5",
 				Computed:            true,
 			},
 			"template": schema.StringAttribute{
@@ -114,11 +106,7 @@ func (d *NotificationPublisherDataSource) Configure(ctx context.Context, req dat
 		return
 	}
 
-	d.client = providerData.Client
-	d.baseURL = providerData.Endpoint
-	d.apiKey = providerData.ApiKey
-	d.bearerToken = providerData.BearerToken
-	d.httpClient = &http.Client{}
+	d.data = providerData
 }
 
 func (d *NotificationPublisherDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -198,7 +186,7 @@ func (d *NotificationPublisherDataSource) Read(ctx context.Context, req datasour
 	data.UUID = types.StringValue(publisher.UUID.String())
 	data.Name = types.StringValue(publisher.Name)
 	data.Description = types.StringValue(publisher.Description)
-	data.PublisherClass = types.StringValue(publisher.PublisherClass)
+	data.PublisherClass = types.StringValue(publisher.class())
 	data.Template = types.StringValue(publisher.Template)
 	data.TemplateMimeType = types.StringValue(publisher.TemplateMimeType)
 	data.DefaultPublisher = types.BoolValue(publisher.DefaultPublisher)
@@ -209,44 +197,5 @@ func (d *NotificationPublisherDataSource) Read(ctx context.Context, req datasour
 // Helper methods for API calls.
 
 func (d *NotificationPublisherDataSource) getAllPublishers(ctx context.Context) ([]NotificationPublisher, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/publisher", d.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var publishers []NotificationPublisher
-	if err := d.doRequest(req, &publishers); err != nil {
-		return nil, err
-	}
-
-	return publishers, nil
-}
-
-func (d *NotificationPublisherDataSource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	if d.apiKey != "" {
-		req.Header.Set("X-API-Key", d.apiKey)
-	} else if d.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+d.bearerToken)
-	}
-
-	resp, err := d.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
+	return apiGetAllPages[NotificationPublisher](ctx, d.data.API(), "/api/v1/notification/publisher", nil)
 }

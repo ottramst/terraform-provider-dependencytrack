@@ -12,7 +12,7 @@ import (
 
 func TestAccPolicyResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
@@ -69,7 +69,7 @@ func TestAccPolicyResource(t *testing.T) {
 }
 
 func testAccPolicyResourceConfig(name, operator, violationState string) string {
-	return testAccProviderConfigWithUsernamePassword() + fmt.Sprintf(`
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_policy" "test" {
   name             = %[1]q
   operator         = %[2]q
@@ -80,7 +80,7 @@ resource "dependencytrack_policy" "test" {
 
 func TestAccPolicyResource_WithConditions(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create with conditions
@@ -127,7 +127,7 @@ func TestAccPolicyResource_WithConditions(t *testing.T) {
 }
 
 func testAccPolicyResourceConfigWithConditions() string {
-	return testAccProviderConfigWithUsernamePassword() + `
+	return testAccProviderConfigWithAPIKey() + `
 resource "dependencytrack_policy" "test" {
   name             = "Policy with Conditions"
   operator         = "ANY"
@@ -150,7 +150,7 @@ resource "dependencytrack_policy" "test" {
 }
 
 func testAccPolicyResourceConfigWithUpdatedConditions() string {
-	return testAccProviderConfigWithUsernamePassword() + `
+	return testAccProviderConfigWithAPIKey() + `
 resource "dependencytrack_policy" "test" {
   name             = "Policy with Conditions"
   operator         = "ALL"

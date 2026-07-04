@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccConfigPropertyDataSource_APIKey tests the config_property data source with API key authentication.
-func TestAccConfigPropertyDataSource_APIKey(t *testing.T) {
+// TestAccConfigPropertyDataSource tests the config_property data source.
+func TestAccConfigPropertyDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

@@ -26,7 +26,7 @@ func NewACLMappingResource() resource.Resource {
 
 // ACLMappingResource defines the resource implementation.
 type ACLMappingResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ACLMappingResourceModel describes the resource data model.
@@ -85,7 +85,7 @@ func (r *ACLMappingResource) Configure(ctx context.Context, req resource.Configu
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *ACLMappingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -114,7 +114,7 @@ func (r *ACLMappingResource) Create(ctx context.Context, req resource.CreateRequ
 		Project: projectUUID,
 	}
 
-	err = r.client.ACL.AddProjectMapping(ctx, mapping)
+	err = r.data.Client.ACL.AddProjectMapping(ctx, mapping)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create ACL mapping, got error: %s", err))
 		return
@@ -151,7 +151,7 @@ func (r *ACLMappingResource) Read(ctx context.Context, req resource.ReadRequest,
 	errProjectFound := errors.New("project found") // Sentinel error to break out of ForEach
 
 	err = dtrack.ForEach(func(po dtrack.PageOptions) (dtrack.Page[dtrack.Project], error) {
-		return r.client.ACL.GetAllProjects(ctx, teamUUID, po)
+		return r.data.Client.ACL.GetAllProjects(ctx, teamUUID, po)
 	}, func(project dtrack.Project) error {
 		if project.UUID == projectUUID {
 			found = true
@@ -206,7 +206,7 @@ func (r *ACLMappingResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	err = r.client.ACL.RemoveProjectMapping(ctx, teamUUID, projectUUID)
+	err = r.data.Client.ACL.RemoveProjectMapping(ctx, teamUUID, projectUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete ACL mapping, got error: %s", err))
 		return

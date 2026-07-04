@@ -11,7 +11,7 @@ import (
 
 func TestAccManagedUserPermissionsResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
@@ -73,7 +73,7 @@ func TestAccManagedUserPermissionsResource(t *testing.T) {
 }
 
 func testAccManagedUserPermissionsResourceConfig(permissions []string) string {
-	config := testAccProviderConfigWithUsernamePassword() + `
+	config := testAccProviderConfigWithAPIKey() + `
 resource "dependencytrack_managed_user" "test" {
   username = "permissions_test_user"
   fullname = "Permissions Test User"
@@ -100,7 +100,7 @@ resource "dependencytrack_managed_user_permissions" "test" {
 
 func TestAccManagedUserPermissionsResource_MultiplePermissions(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create with many permissions
@@ -125,7 +125,7 @@ func TestAccManagedUserPermissionsResource_MultiplePermissions(t *testing.T) {
 }
 
 func testAccManagedUserPermissionsResourceConfigMultiple() string {
-	return testAccProviderConfigWithUsernamePassword() + `
+	return testAccProviderConfigWithAPIKey() + `
 resource "dependencytrack_managed_user" "test" {
   username = "multi_permissions_test_user"
   fullname = "Multi Permissions Test User"

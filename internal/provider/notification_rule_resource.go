@@ -1,14 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -31,11 +27,7 @@ func NewNotificationRuleResource() resource.Resource {
 
 // NotificationRuleResource defines the resource implementation.
 type NotificationRuleResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // NotificationRuleResourceModel describes the resource data model.
@@ -158,6 +150,15 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				MarkdownDescription: "Publisher-specific configuration (JSON string)",
 				Optional:            true,
 				Computed:            true,
+				// Carry the prior value into update plans when the config is
+				// null: DT v5 populates the publisher's default config on rule
+				// create and rejects updates that omit publisherConfig when
+				// the publisher requires configuration, so dropping the value
+				// (the framework's default "unknown" for computed attributes)
+				// would break every subsequent update.
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -178,11 +179,7 @@ func (r *NotificationRuleResource) Configure(ctx context.Context, req resource.C
 		return
 	}
 
-	r.client = providerData.Client
-	r.baseURL = providerData.Endpoint
-	r.apiKey = providerData.ApiKey
-	r.bearerToken = providerData.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = providerData
 }
 
 func (r *NotificationRuleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -284,11 +281,18 @@ func (r *NotificationRuleResource) Create(ctx context.Context, req resource.Crea
 
 	if needsUpdate {
 		tflog.Debug(ctx, "Following up with update to set fields ignored by PUT endpoint due to API limitation")
-		createdRule, err = r.updateRule(ctx, createdRule)
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification rule fields, got error: %s", err))
+		updatedRule, updateErr := r.updateRule(ctx, createdRule)
+		if updateErr != nil {
+			// The rule already exists server-side at this point. Persist it to
+			// state (Terraform will mark it tainted) instead of leaking it;
+			// DT v5 enforces unique rule names, so a leaked rule would make
+			// every subsequent apply fail with a duplicate-name error.
+			resp.Diagnostics.Append(r.updateModelFromAPI(ctx, &data, &createdRule)...)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update notification rule fields, got error: %s", updateErr))
 			return
 		}
+		createdRule = updatedRule
 	}
 
 	// Update model with response from create/update
@@ -316,14 +320,14 @@ func (r *NotificationRuleResource) Read(ctx context.Context, req resource.ReadRe
 		return
 	}
 
-	rule, err := r.getRule(ctx, ruleUUID)
+	rule, found, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
-		if isNotFoundError(err) {
-			// Rule doesn't exist anymore, remove from state
-			resp.State.RemoveResource(ctx)
-			return
-		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read notification rule, got error: %s", err))
+		return
+	}
+	if !found {
+		// Rule doesn't exist anymore, remove from state
+		resp.State.RemoveResource(ctx)
 		return
 	}
 
@@ -479,9 +483,28 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 
 	model.Publisher = types.StringValue(rule.Publisher.UUID.String())
 
-	if rule.PublisherConfig != "" {
-		model.PublisherConfig = types.StringValue(rule.PublisherConfig)
-	} else if model.PublisherConfig.IsNull() {
+	switch {
+	case rule.PublisherConfig != "":
+		// DT v5 stores publisherConfig as JSONB and re-serializes it on list
+		// reads (e.g. {"a":1} comes back as {"a": 1}), and it also fills in
+		// the publisher extension's default config when none was provided, so
+		// byte-for-byte fidelity with the configured string can't be assumed.
+		// Keep the existing planned/state value when it is semantically the
+		// same JSON (avoiding perpetual whitespace-only drift), and otherwise
+		// store the API value in canonical form so the create/update and
+		// read/import paths converge on identical state.
+		if model.PublisherConfig.IsNull() || model.PublisherConfig.IsUnknown() ||
+			!jsonStringsEquivalent(model.PublisherConfig.ValueString(), rule.PublisherConfig) {
+			model.PublisherConfig = types.StringValue(canonicalJSONString(rule.PublisherConfig))
+		}
+	case model.PublisherConfig.IsUnknown():
+		// DT >= 4.14 no longer echoes publisherConfig in create/update
+		// responses (and may omit it from list reads), so the API value comes
+		// back empty. When nothing was configured, the planned value is
+		// unknown; resolve it to null rather than leaving an unknown in state,
+		// which would trip the framework's "inconsistent result" check. A
+		// configured value carried over from the plan, or the prior state on
+		// read, is already concrete and left untouched.
 		model.PublisherConfig = types.StringNull()
 	}
 
@@ -524,64 +547,39 @@ func (r *NotificationRuleResource) updateModelFromAPI(ctx context.Context, model
 //
 // Callers should follow up with updateRule() if any of these fields need non-default values.
 func (r *NotificationRuleResource) createRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
 	var result NotificationRule
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPut, "/api/v1/notification/rule", rule, &result); err != nil {
 		return NotificationRule{}, err
 	}
 
 	return result, nil
 }
 
-func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// getRule lists all notification rules and returns the one matching ruleUUID.
+// The rule endpoint has no get-by-uuid variant, so a missing rule is reported
+// via found=false (not an error): the list call itself succeeds, so there is
+// no HTTP 404 for isNotFound to key off, and callers rely on found to decide
+// whether to remove the resource (Read) or treat it as already deleted
+// (deleteRule).
+func (r *NotificationRuleResource) getRule(ctx context.Context, ruleUUID uuid.UUID) (NotificationRule, bool, error) {
+	rules, err := apiGetAllPages[NotificationRule](ctx, r.data.API(), "/api/v1/notification/rule", nil)
 	if err != nil {
-		return NotificationRule{}, err
-	}
-
-	var rules []NotificationRule
-	if err := r.doRequest(req, &rules); err != nil {
-		return NotificationRule{}, err
+		return NotificationRule{}, false, err
 	}
 
 	// Find the rule by UUID
 	for _, rule := range rules {
 		if rule.UUID == ruleUUID {
-			return rule, nil
+			return rule, true, nil
 		}
 	}
 
-	return NotificationRule{}, fmt.Errorf("notification rule not found: %s", ruleUUID)
+	return NotificationRule{}, false, nil
 }
 
 func (r *NotificationRuleResource) updateRule(ctx context.Context, rule NotificationRule) (NotificationRule, error) {
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
-
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return NotificationRule{}, err
-	}
-
 	var result NotificationRule
-	if err := r.doRequest(req, &result); err != nil {
+	if err := r.data.API().Do(ctx, http.MethodPost, "/api/v1/notification/rule", rule, &result); err != nil {
 		return NotificationRule{}, err
 	}
 
@@ -590,55 +588,15 @@ func (r *NotificationRuleResource) updateRule(ctx context.Context, rule Notifica
 
 func (r *NotificationRuleResource) deleteRule(ctx context.Context, ruleUUID uuid.UUID) error {
 	// First, get the full rule object - DELETE requires complete object with all required fields
-	rule, err := r.getRule(ctx, ruleUUID)
+	rule, found, err := r.getRule(ctx, ruleUUID)
 	if err != nil {
-		// If rule doesn't exist, consider it already deleted
-		if isNotFoundError(err) {
-			return nil
-		}
 		return err
 	}
-
-	url := fmt.Sprintf("%s/api/v1/notification/rule", r.baseURL)
+	// If rule doesn't exist, consider it already deleted
+	if !found {
+		return nil
+	}
 
 	// DELETE requires the rule object in the body with all required fields
-	body, err := json.Marshal(rule)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "DELETE", url, bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-
-	return r.doRequest(req, nil)
-}
-
-func (r *NotificationRuleResource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if r.apiKey != "" {
-		req.Header.Set("X-API-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
+	return r.data.API().Do(ctx, http.MethodDelete, "/api/v1/notification/rule", rule, nil)
 }

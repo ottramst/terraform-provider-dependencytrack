@@ -33,7 +33,7 @@ resource "dependencytrack_project" "example" {
 ### Optional
 
 - `active` (Boolean) Whether the project is active
-- `author` (String) The author of the project
+- `author` (String) The author of the project. On Dependency-Track v5 this deprecated field is accepted on write but never returned on read (v5 tracks authors as a list internally), so the provider preserves the configured value in state on v5.
 - `classifier` (String) The classifier of the project (APPLICATION, FRAMEWORK, LIBRARY, CONTAINER, OPERATING_SYSTEM, DEVICE, FIRMWARE, FILE, PLATFORM, DEVICE_DRIVER, MACHINE_LEARNING_MODEL, DATA)
 - `cpe` (String) The Common Platform Enumeration (CPE) of the project
 - `description` (String) The description of the project

@@ -10,8 +10,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
-// TestAccManagedUserResource_APIKey tests the managed_user resource with API key authentication.
-func TestAccManagedUserResource_APIKey(t *testing.T) {
+// TestAccManagedUserResource tests the managed_user resource.
+func TestAccManagedUserResource(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -76,53 +76,55 @@ resource "dependencytrack_managed_user" "test" {
 `, username, fullname, email, password)
 }
 
-// TestAccManagedUserResource_UsernamePassword tests the managed_user resource with username/password authentication.
-func TestAccManagedUserResource_UsernamePassword(t *testing.T) {
+// TestAccManagedUserResource_BooleanToggle tests that suspended,
+// force_password_change, and non_expiry_password can be toggled from
+// true back to false on update. This guards against the fields being
+// dropped from the update request body (e.g. via json omitempty),
+// which would leave them true on the server.
+func TestAccManagedUserResource_BooleanToggle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
-		PreCheck:                 func() { testAccPreCheckUsernamePassword(t) },
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			// Create and Read testing
+			// Create with all boolean attributes set to true
 			{
-				Config: testAccManagedUserResourceConfigWithUsernamePassword("userpass_testuser", "Username Password Test User", "userpass@example.com", "P@ssw0rd123"),
+				Config: testAccManagedUserResourceConfigWithBooleans("booltoggle_testuser", "Bool Toggle Test User", "booltoggle@example.com", "P@ssw0rd123", true),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_managed_user.test",
-						tfjsonpath.New("username"),
-						knownvalue.StringExact("userpass_testuser"),
+						tfjsonpath.New("suspended"),
+						knownvalue.Bool(true),
 					),
 					statecheck.ExpectKnownValue(
 						"dependencytrack_managed_user.test",
-						tfjsonpath.New("fullname"),
-						knownvalue.StringExact("Username Password Test User"),
+						tfjsonpath.New("force_password_change"),
+						knownvalue.Bool(true),
 					),
 					statecheck.ExpectKnownValue(
 						"dependencytrack_managed_user.test",
-						tfjsonpath.New("email"),
-						knownvalue.StringExact("userpass@example.com"),
+						tfjsonpath.New("non_expiry_password"),
+						knownvalue.Bool(true),
 					),
 				},
 			},
-			// ImportState testing
+			// Update all boolean attributes back to false
 			{
-				ResourceName:            "dependencytrack_managed_user.test",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"password"},
-			},
-			// Update and Read testing
-			{
-				Config: testAccManagedUserResourceConfigWithUsernamePassword("userpass_testuser", "Updated Username Password Test User", "userpass_updated@example.com", "P@ssw0rd456"),
+				Config: testAccManagedUserResourceConfigWithBooleans("booltoggle_testuser", "Bool Toggle Test User", "booltoggle@example.com", "P@ssw0rd123", false),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_managed_user.test",
-						tfjsonpath.New("fullname"),
-						knownvalue.StringExact("Updated Username Password Test User"),
+						tfjsonpath.New("suspended"),
+						knownvalue.Bool(false),
 					),
 					statecheck.ExpectKnownValue(
 						"dependencytrack_managed_user.test",
-						tfjsonpath.New("email"),
-						knownvalue.StringExact("userpass_updated@example.com"),
+						tfjsonpath.New("force_password_change"),
+						knownvalue.Bool(false),
+					),
+					statecheck.ExpectKnownValue(
+						"dependencytrack_managed_user.test",
+						tfjsonpath.New("non_expiry_password"),
+						knownvalue.Bool(false),
 					),
 				},
 			},
@@ -131,13 +133,16 @@ func TestAccManagedUserResource_UsernamePassword(t *testing.T) {
 	})
 }
 
-func testAccManagedUserResourceConfigWithUsernamePassword(username, fullname, email, password string) string {
-	return testAccProviderConfigWithUsernamePassword() + fmt.Sprintf(`
+func testAccManagedUserResourceConfigWithBooleans(username, fullname, email, password string, flag bool) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_managed_user" "test" {
-  username = %[1]q
-  fullname = %[2]q
-  email    = %[3]q
-  password = %[4]q
+  username              = %[1]q
+  fullname              = %[2]q
+  email                 = %[3]q
+  password              = %[4]q
+  suspended             = %[5]t
+  force_password_change = %[5]t
+  non_expiry_password   = %[5]t
 }
-`, username, fullname, email, password)
+`, username, fullname, email, password, flag)
 }

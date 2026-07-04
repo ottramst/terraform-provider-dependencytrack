@@ -25,7 +25,7 @@ func NewProjectPolicyResource() resource.Resource {
 
 // ProjectPolicyResource defines the resource implementation.
 type ProjectPolicyResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // ProjectPolicyResourceModel describes the resource data model.
@@ -84,7 +84,7 @@ func (r *ProjectPolicyResource) Configure(ctx context.Context, req resource.Conf
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *ProjectPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -108,7 +108,7 @@ func (r *ProjectPolicyResource) Create(ctx context.Context, req resource.CreateR
 		return
 	}
 
-	_, err = r.client.Policy.AddProject(ctx, policyUUID, projectUUID)
+	_, err = r.data.Client.Policy.AddProject(ctx, policyUUID, projectUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to add project to policy, got error: %s", err))
 		return
@@ -141,7 +141,7 @@ func (r *ProjectPolicyResource) Read(ctx context.Context, req resource.ReadReque
 	}
 
 	// Get the policy and check if the project is in its projects list
-	policy, err := r.client.Policy.Get(ctx, policyUUID)
+	policy, err := r.data.Client.Policy.Get(ctx, policyUUID)
 	if err != nil {
 		if apiErr, ok := err.(*dtrack.APIError); ok && apiErr.StatusCode == 404 {
 			// Policy doesn't exist anymore, remove from state
@@ -201,8 +201,12 @@ func (r *ProjectPolicyResource) Delete(ctx context.Context, req resource.DeleteR
 		return
 	}
 
-	_, err = r.client.Policy.DeleteProject(ctx, policyUUID, projectUUID)
+	_, err = r.data.Client.Policy.DeleteProject(ctx, policyUUID, projectUUID)
 	if err != nil {
+		// The policy or project being gone means there is nothing left to delete.
+		if isNotFound(err) {
+			return
+		}
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to remove project from policy, got error: %s", err))
 		return
 	}

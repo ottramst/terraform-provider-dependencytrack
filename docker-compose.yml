@@ -1,8 +1,6 @@
-version: "3"
-
 services:
-  dtrack-api:
-    image: dependencytrack/apiserver
+  apiserver:
+    image: dependencytrack/apiserver:4.14.2
     environment:
       ALPINE_DATABASE_MODE: external
       ALPINE_DATABASE_URL: "jdbc:postgresql://postgres:5432/postgres"
@@ -18,14 +16,14 @@ services:
       postgres:
         condition: service_healthy
 
-  dtrack-frontend:
-    image: dependencytrack/frontend
+  frontend:
+    image: dependencytrack/frontend:4.14.2
     environment:
       - API_BASE_URL=http://localhost:8081
     ports:
       - "8080:8080"
     depends_on:
-      - dtrack-api
+      - apiserver
 
   postgres:
     image: postgres:17-alpine

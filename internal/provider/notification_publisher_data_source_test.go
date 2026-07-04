@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -10,12 +11,13 @@ import (
 )
 
 func TestAccNotificationPublisherDataSource_ByUUID(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccNotificationPublisherDataSourceConfigByUUID,
+				Config: testAccNotificationPublisherDataSourceConfigByUUID(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test",
@@ -35,7 +37,7 @@ func TestAccNotificationPublisherDataSource_ByUUID(t *testing.T) {
 					statecheck.ExpectKnownValue(
 						"data.dependencytrack_notification_publisher.by_uuid",
 						tfjsonpath.New("publisher_class"),
-						knownvalue.StringExact("org.dependencytrack.notification.publisher.WebhookPublisher"),
+						knownvalue.StringExact(publisherClass),
 					),
 				},
 			},
@@ -44,12 +46,13 @@ func TestAccNotificationPublisherDataSource_ByUUID(t *testing.T) {
 }
 
 func TestAccNotificationPublisherDataSource_ByName(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccNotificationPublisherDataSourceConfigByName,
+				Config: testAccNotificationPublisherDataSourceConfigByName(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"dependencytrack_notification_publisher.test",
@@ -69,7 +72,7 @@ func TestAccNotificationPublisherDataSource_ByName(t *testing.T) {
 					statecheck.ExpectKnownValue(
 						"data.dependencytrack_notification_publisher.by_name",
 						tfjsonpath.New("publisher_class"),
-						knownvalue.StringExact("org.dependencytrack.notification.publisher.ConsolePublisher"),
+						knownvalue.StringExact(publisherClass),
 					),
 				},
 			},
@@ -78,12 +81,13 @@ func TestAccNotificationPublisherDataSource_ByName(t *testing.T) {
 }
 
 func TestAccNotificationPublisherDataSource_BothUUIDAndName(t *testing.T) {
+	publisherClass := testAccPublisherClass(t)
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccNotificationPublisherDataSourceConfigBoth,
+				Config: testAccNotificationPublisherDataSourceConfigBoth(publisherClass),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"data.dependencytrack_notification_publisher.by_uuid",
@@ -111,11 +115,12 @@ func TestAccNotificationPublisherDataSource_BothUUIDAndName(t *testing.T) {
 	})
 }
 
-var testAccNotificationPublisherDataSourceConfigByUUID = testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherDataSourceConfigByUUID(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for UUID Lookup"
   description        = "A test publisher for data source UUID lookup"
-  publisher_class    = "org.dependencytrack.notification.publisher.WebhookPublisher"
+  publisher_class    = %q
   template_mime_type = "application/json"
   template           = "{\"content\": \"test\"}"
 }
@@ -123,24 +128,28 @@ resource "dependencytrack_notification_publisher" "test" {
 data "dependencytrack_notification_publisher" "by_uuid" {
   uuid = dependencytrack_notification_publisher.test.uuid
 }
-`
+`, publisherClass)
+}
 
-var testAccNotificationPublisherDataSourceConfigByName = testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherDataSourceConfigByName(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Name Lookup"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
 data "dependencytrack_notification_publisher" "by_name" {
   name = dependencytrack_notification_publisher.test.name
 }
-`
+`, publisherClass)
+}
 
-var testAccNotificationPublisherDataSourceConfigBoth = testAccProviderConfigWithAPIKey() + `
+func testAccNotificationPublisherDataSourceConfigBoth(publisherClass string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
 resource "dependencytrack_notification_publisher" "test" {
   name               = "Test Publisher for Both Lookups"
-  publisher_class    = "org.dependencytrack.notification.publisher.ConsolePublisher"
+  publisher_class    = %q
   template_mime_type = "text/plain"
 }
 
@@ -151,4 +160,5 @@ data "dependencytrack_notification_publisher" "by_uuid" {
 data "dependencytrack_notification_publisher" "by_name" {
   name = dependencytrack_notification_publisher.test.name
 }
-`
+`, publisherClass)
+}

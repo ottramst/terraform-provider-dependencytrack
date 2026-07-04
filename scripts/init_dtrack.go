@@ -13,18 +13,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// waitForHealth checks if the Dependency Track health endpoint responds with 200
+// waitForHealth checks if the Dependency Track API responds with 200 on
+// /api/version. This is used instead of /health/ready because in v5 the
+// health endpoints moved to a separate management port (9000) which isn't
+// necessarily exposed, whereas /api/version stays on the main API port and
+// works on both v4 and v5. Using plain net/http (rather than dtrack.NewClient,
+// which eagerly fetches /api/version itself) lets this poll succeed while the
+// server is still booting.
 // It retries up to maxRetries times with exponential backoff.
 func waitForHealth(endpoint string, maxRetries int) error {
-	healthURL := endpoint + "/health/ready"
+	versionURL := endpoint + "/api/version"
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
 	for i := 0; i < maxRetries; i++ {
-		resp, err := client.Get(healthURL)
+		resp, err := client.Get(versionURL)
 		if err == nil {
 			statusOK := resp.StatusCode == http.StatusOK
+			_ = resp.Body.Close()
 			if statusOK {
 				return nil
 			}
@@ -48,14 +55,16 @@ func main() {
 		endpoint = "http://localhost:8081"
 	}
 
+	// Wait for the API to respond with 200 before continuing. This must happen
+	// before dtrack.NewClient, which eagerly calls /api/version and would fail
+	// while the server is still starting up.
+	if err := waitForHealth(endpoint, 20); err != nil {
+		log.Fatalf("Dependency Track server is not healthy: %v", err)
+	}
+
 	initC, err := dtrack.NewClient(endpoint)
 	if err != nil {
 		log.Fatalf("Unable to initialize dtrack client: %v", err)
-	}
-
-	// Wait for the health endpoint to respond with 200 before continuing
-	if err := waitForHealth(endpoint, 20); err != nil {
-		log.Fatalf("Dependency Track server is not healthy: %v", err)
 	}
 
 	// Try to force change default admin password

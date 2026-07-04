@@ -25,7 +25,7 @@ func NewTeamResource() resource.Resource {
 
 // TeamResource defines the resource implementation.
 type TeamResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // TeamResourceModel describes the resource data model.
@@ -75,7 +75,7 @@ func (r *TeamResource) Configure(ctx context.Context, req resource.ConfigureRequ
 		return
 	}
 
-	r.client = providerData.Client
+	r.data = providerData
 }
 
 func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -93,7 +93,7 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 		Name: data.Name.ValueString(),
 	}
 
-	createdTeam, err := r.client.Team.Create(ctx, team)
+	createdTeam, err := r.data.Client.Team.Create(ctx, team)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create team, got error: %s", err))
 		return
@@ -127,7 +127,7 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	// Read team from DependencyTrack
-	team, err := r.client.Team.Get(ctx, teamUUID)
+	team, err := r.data.Client.Team.Get(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team, got error: %s", err))
 		return
@@ -164,7 +164,7 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		Name: data.Name.ValueString(),
 	}
 
-	updatedTeam, err := r.client.Team.Update(ctx, team)
+	updatedTeam, err := r.data.Client.Team.Update(ctx, team)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update team, got error: %s", err))
 		return
@@ -200,7 +200,7 @@ func (r *TeamResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		Name: data.Name.ValueString(),
 	}
 
-	err = r.client.Team.Delete(ctx, team)
+	err = r.data.Client.Team.Delete(ctx, team)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete team, got error: %s", err))
 		return

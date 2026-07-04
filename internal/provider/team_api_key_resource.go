@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -23,7 +22,7 @@ func NewTeamAPIKeyResource() resource.Resource {
 
 // TeamAPIKeyResource defines the resource implementation.
 type TeamAPIKeyResource struct {
-	client *dtrack.Client
+	data *Data
 }
 
 // TeamAPIKeyResourceModel describes the resource data model.
@@ -96,7 +95,7 @@ func (r *TeamAPIKeyResource) Configure(ctx context.Context, req resource.Configu
 		return
 	}
 
-	r.client = data.Client
+	r.data = data
 }
 
 func (r *TeamAPIKeyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -115,7 +114,7 @@ func (r *TeamAPIKeyResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// Generate the API key
-	apiKey, err := r.client.Team.GenerateAPIKey(ctx, teamUUID)
+	apiKey, err := r.data.Client.Team.GenerateAPIKey(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to generate API key, got error: %s", err))
 		return
@@ -128,7 +127,7 @@ func (r *TeamAPIKeyResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// Update the comment if provided
 	if !data.Comment.IsNull() && data.Comment.ValueString() != "" {
-		_, err = r.client.Team.UpdateAPIKeyComment(ctx, apiKey.PublicId, data.Comment.ValueString())
+		_, err = r.data.Client.Team.UpdateAPIKeyComment(ctx, apiKey.PublicId, data.Comment.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update API key comment, got error: %s", err))
 			return
@@ -154,7 +153,7 @@ func (r *TeamAPIKeyResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	// Get all API keys for the team
-	apiKeys, err := r.client.Team.GetAPIKeys(ctx, teamUUID)
+	apiKeys, err := r.data.Client.Team.GetAPIKeys(ctx, teamUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read team API keys, got error: %s", err))
 		return
@@ -198,7 +197,7 @@ func (r *TeamAPIKeyResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Only the comment can be updated
 	if !plan.Comment.Equal(state.Comment) {
-		_, err := r.client.Team.UpdateAPIKeyComment(ctx, state.ID.ValueString(), plan.Comment.ValueString())
+		_, err := r.data.Client.Team.UpdateAPIKeyComment(ctx, state.ID.ValueString(), plan.Comment.ValueString())
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update API key comment, got error: %s", err))
 			return
@@ -223,7 +222,7 @@ func (r *TeamAPIKeyResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
-	err := r.client.Team.DeleteAPIKey(ctx, data.ID.ValueString())
+	err := r.data.Client.Team.DeleteAPIKey(ctx, data.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete API key, got error: %s", err))
 		return

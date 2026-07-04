@@ -2,10 +2,7 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -27,11 +24,7 @@ func NewManagedUserPermissionsResource() resource.Resource {
 
 // ManagedUserPermissionsResource defines the resource implementation.
 type ManagedUserPermissionsResource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // ManagedUserPermissionsResourceModel describes the resource data model.
@@ -39,17 +32,6 @@ type ManagedUserPermissionsResourceModel struct {
 	ID          types.String `tfsdk:"id"`
 	User        types.String `tfsdk:"user"`
 	Permissions types.Set    `tfsdk:"permissions"`
-}
-
-// ManagedUserWithPermissions represents a managed user with permissions from the API.
-type ManagedUserWithPermissions struct {
-	Username            string              `json:"username"`
-	Fullname            string              `json:"fullname,omitempty"`
-	Email               string              `json:"email,omitempty"`
-	Suspended           bool                `json:"suspended"`
-	ForcePasswordChange bool                `json:"forcePasswordChange"`
-	NonExpiryPassword   bool                `json:"nonExpiryPassword"`
-	Permissions         []dtrack.Permission `json:"permissions"`
 }
 
 func (r *ManagedUserPermissionsResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -102,102 +84,23 @@ func (r *ManagedUserPermissionsResource) Configure(ctx context.Context, req reso
 		return
 	}
 
-	r.client = data.Client
-	r.baseURL = data.Endpoint
-	r.apiKey = data.ApiKey
-	r.bearerToken = data.BearerToken
-	r.httpClient = &http.Client{}
+	r.data = data
 }
 
 func (r *ManagedUserPermissionsResource) addPermissionToUser(ctx context.Context, username, permission string) error {
-	url := fmt.Sprintf("%s/api/v1/permission/%s/user/%s", r.baseURL, permission, username)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-
-	if r.apiKey != "" {
-		req.Header.Set("X-Api-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	_, err := r.data.Client.Permission.AddPermissionToUser(ctx, dtrack.Permission{Name: permission}, username)
+	return err
 }
 
 func (r *ManagedUserPermissionsResource) removePermissionFromUser(ctx context.Context, username, permission string) error {
-	url := fmt.Sprintf("%s/api/v1/permission/%s/user/%s", r.baseURL, permission, username)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-	if err != nil {
-		return fmt.Errorf("creating request: %w", err)
-	}
-
-	if r.apiKey != "" {
-		req.Header.Set("X-Api-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
+	_, err := r.data.Client.Permission.RemovePermissionFromUser(ctx, dtrack.Permission{Name: permission}, username)
+	return err
 }
 
 func (r *ManagedUserPermissionsResource) getUserPermissions(ctx context.Context, username string) ([]string, error) {
-	url := fmt.Sprintf("%s/api/v1/user/managed", r.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	users, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-
-	if r.apiKey != "" {
-		req.Header.Set("X-Api-Key", r.apiKey)
-	} else if r.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+r.bearerToken)
-	}
-
-	resp, err := r.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("executing request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
-	}
-
-	var users []ManagedUserWithPermissions
-	if err := json.Unmarshal(body, &users); err != nil {
-		return nil, fmt.Errorf("unmarshaling response: %w", err)
+		return nil, err
 	}
 
 	// Find the user by username

@@ -1,12 +1,8 @@
 package provider
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -24,11 +20,7 @@ func NewManagedUserDataSource() datasource.DataSource {
 
 // ManagedUserDataSource defines the data source implementation.
 type ManagedUserDataSource struct {
-	client      *dtrack.Client
-	baseURL     string
-	apiKey      string
-	bearerToken string
-	httpClient  *http.Client
+	data *Data
 }
 
 // ManagedUserDataSourceModel describes the data source data model.
@@ -95,11 +87,7 @@ func (d *ManagedUserDataSource) Configure(ctx context.Context, req datasource.Co
 		return
 	}
 
-	d.client = providerData.Client
-	d.baseURL = providerData.Endpoint
-	d.apiKey = providerData.ApiKey
-	d.bearerToken = providerData.BearerToken
-	d.httpClient = &http.Client{}
+	d.data = providerData
 }
 
 func (d *ManagedUserDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -135,57 +123,18 @@ func (d *ManagedUserDataSource) Read(ctx context.Context, req datasource.ReadReq
 
 // Helper methods for API calls
 
-func (d *ManagedUserDataSource) getManagedUser(ctx context.Context, username string) (*ManagedUser, error) {
-	url := fmt.Sprintf("%s/api/v1/user/managed", d.baseURL)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+func (d *ManagedUserDataSource) getManagedUser(ctx context.Context, username string) (*dtrack.ManagedUser, error) {
+	users, err := fetchAllPages(ctx, d.data.Client.User.GetAllManaged)
 	if err != nil {
-		return nil, err
-	}
-
-	var users []ManagedUser
-	if err := d.doRequest(req, &users); err != nil {
 		return nil, err
 	}
 
 	// Find user by username
-	for _, u := range users {
-		if u.Username == username {
-			return &u, nil
+	for i := range users {
+		if users[i].Username == username {
+			return &users[i], nil
 		}
 	}
 
 	return nil, fmt.Errorf("managed user not found: %s", username)
-}
-
-func (d *ManagedUserDataSource) doRequest(req *http.Request, result interface{}) error {
-	req.Header.Set("Content-Type", "application/json")
-
-	// Set authentication header based on available credentials
-	if d.apiKey != "" {
-		req.Header.Set("X-API-Key", d.apiKey)
-	} else if d.bearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+d.bearerToken)
-	}
-
-	resp, err := d.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	if result != nil && resp.StatusCode != http.StatusNoContent {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return json.NewDecoder(bytes.NewReader(bodyBytes)).Decode(result)
-	}
-
-	return nil
 }

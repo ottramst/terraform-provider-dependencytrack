@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -11,14 +12,29 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Data contains the client and API configuration.
 type Data struct {
-	Client      *dtrack.Client
-	Endpoint    string
-	ApiKey      string
-	BearerToken string
+	Client        *dtrack.Client
+	Endpoint      string
+	ApiKey        string
+	BearerToken   string
+	ServerVersion ServerVersion
+	api           *apiClient
+}
+
+// IsV5 reports whether the configured Dependency-Track server is running
+// version 5.x or newer.
+func (d *Data) IsV5() bool {
+	return d.ServerVersion.IsV5()
+}
+
+// API returns the shared HTTP client used by resources/data sources that
+// call Dependency-Track endpoints not covered by client-go's typed methods.
+func (d *Data) API() *apiClient {
+	return d.api
 }
 
 // Ensure DependencyTrackProvider satisfies various provider interfaces.
@@ -49,7 +65,11 @@ func (p *DependencyTrackProvider) Metadata(ctx context.Context, req provider.Met
 
 func (p *DependencyTrackProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Terraform provider for OWASP Dependency-Track.",
+		MarkdownDescription: "Terraform provider for [OWASP Dependency-Track](https://dependencytrack.org/). " +
+			"It supports both Dependency-Track v4 (tested against 4.14.x) and v5 (tested against 5.0.x). " +
+			"At configure time the provider queries the unauthenticated `GET /api/version` endpoint to detect the server's major version and automatically adapts version-dependent behavior (for example, notification publisher identifiers and the deprecated project `author` field); there is no version attribute to set. " +
+			"If that probe fails, provider configuration fails with an actionable error instead of silently guessing a version. " +
+			"Authenticate with either an `api_key` or a `username`/`password` pair (the two methods are mutually exclusive).",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				MarkdownDescription: "The URL of the Dependency-Track server (e.g., https://dtrack.example.com)",
@@ -190,12 +210,48 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 		}
 	}
 
+	// Detect the Dependency-Track server version via the unauthenticated
+	// GET /api/version endpoint (exposed by both v4 and v5). This is required
+	// (no silent fallback) since resource behavior diverges between major
+	// versions starting in a later task.
+	about, err := client.About.Get(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Detect Dependency-Track Server Version",
+			"The provider requires GET "+data.Endpoint.ValueString()+"/api/version to be reachable. "+
+				"Check the endpoint configuration and any proxies between Terraform and the Dependency-Track server. "+
+				"Error: "+err.Error(),
+		)
+		return
+	}
+
+	serverVersion, err := parseServerVersion(about.Version)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Detect Dependency-Track Server Version",
+			fmt.Sprintf(
+				"The provider requires GET %s/api/version to return a valid Dependency-Track version, "+
+					"but got %q which could not be parsed. Check the endpoint configuration and any proxies "+
+					"between Terraform and the Dependency-Track server. Error: %s",
+				data.Endpoint.ValueString(), about.Version, err,
+			),
+		)
+		return
+	}
+
+	tflog.Info(ctx, "detected Dependency-Track server version", map[string]interface{}{
+		"version": serverVersion.Raw,
+		"major":   serverVersion.Major,
+	})
+
 	// Create provider data with client and API configuration
 	providerData := &Data{
-		Client:      client,
-		Endpoint:    data.Endpoint.ValueString(),
-		ApiKey:      apiKey,
-		BearerToken: bearerToken,
+		Client:        client,
+		Endpoint:      data.Endpoint.ValueString(),
+		ApiKey:        apiKey,
+		BearerToken:   bearerToken,
+		ServerVersion: serverVersion,
+		api:           newAPIClient(data.Endpoint.ValueString(), apiKey, bearerToken),
 	}
 
 	// Make the provider data available to data sources and resources
@@ -220,6 +276,17 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewNotificationRuleResource,
 		NewNotificationRuleProjectResource,
 		NewNotificationRuleTeamResource,
+		NewRepositoryResource,
+		NewOIDCGroupResource,
+		NewTagResource,
+		NewLicenseGroupResource,
+		NewProjectPropertyResource,
+		NewOIDCGroupMappingResource,
+		NewLDAPMappingResource,
+		NewLicenseResource,
+		NewLicenseGroupLicenseResource,
+		NewPolicyTagResource,
+		NewNotificationRuleTagResource,
 	}
 }
 
@@ -236,6 +303,16 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewPolicyDataSource,
 		NewTeamAPIKeysDataSource,
 		NewNotificationPublisherDataSource,
+		NewRepositoriesDataSource,
+		NewOIDCGroupDataSource,
+		NewTagsDataSource,
+		NewLicenseGroupDataSource,
+		NewLicenseDataSource,
+		NewLicensesDataSource,
+		NewPortfolioMetricsDataSource,
+		NewProjectMetricsDataSource,
+		NewProjectViolationsDataSource,
+		NewProjectFindingsDataSource,
 	}
 }
 

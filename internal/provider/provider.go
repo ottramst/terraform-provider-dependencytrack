@@ -287,6 +287,8 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewLicenseGroupLicenseResource,
 		NewPolicyTagResource,
 		NewNotificationRuleTagResource,
+		NewSecretResource,
+		NewExtensionConfigResource,
 	}
 }
 

@@ -4,7 +4,7 @@ BINARY = terraform-provider-${NAME}
 default: fmt lint install generate
 
 build:
-	go build -o $(BINARY) -v ./...
+	go build -o $(BINARY) -v .
 
 .PHONY: build-ci
 build-ci:

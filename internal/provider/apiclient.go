@@ -72,6 +72,13 @@ func isForbidden(err error) bool {
 	return apiErrorStatusCode(err) == http.StatusForbidden
 }
 
+// isNotModified reports whether err represents an HTTP 304 response. The
+// /api/v2 update endpoints (e.g. secrets, extension configs) return 304 when
+// the submitted value matches the stored one; callers treat that as success.
+func isNotModified(err error) bool {
+	return apiErrorStatusCode(err) == http.StatusNotModified
+}
+
 // apiErrorStatusCode extracts a status code from err if it is (or wraps) an
 // *apiError or a dtrack.APIError (pointer or value form), and -1 otherwise.
 func apiErrorStatusCode(err error) int {
@@ -128,7 +135,10 @@ func (c *apiClient) doWithHeaders(ctx context.Context, method, path string, body
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	// The /api/v2 endpoints produce application/problem+json for error
+	// responses and negotiate strictly: a bare "application/json" Accept
+	// header is rejected with 406 Not Acceptable.
+	req.Header.Set("Accept", "application/json, application/problem+json;q=0.9")
 
 	switch {
 	case c.apiKey != "":

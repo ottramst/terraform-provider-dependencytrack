@@ -1,3 +1,17 @@
+## v0.6.0
+
+FEATURES:
+
+* **New Resource:** `dependencytrack_secret` - Manage secrets in Dependency-Track v5's secret manager. Secrets are referenced by name from secret-reference fields such as extension config credentials and `dependencytrack_repository.password`
+* **New Resource:** `dependencytrack_extension_config` - Manage Dependency-Track v5 extension configurations via the `/api/v2` extensions API: vulnerability analyzers (`vuln-analyzer`: `internal`, `oss-index`, `snyk`, `trivy`, `vuln-db`), vulnerability data sources (`vuln-data-source`: `github`, `nvd`, `osv`), notification publishers (`notification-publisher`, incl. SMTP settings via `email`), and package metadata resolvers
+
+NOTES:
+
+* Both new resources require Dependency-Track v5 (the `/api/v2` API does not exist on v4) and fail with an actionable error against v4 servers
+* The secret value is write-only: Dependency-Track never returns it, so value drift cannot be detected, and after `terraform import` the first apply re-sets it to the configured value
+* internal: The shared API client now sends `Accept: application/json, application/problem+json;q=0.9` — the `/api/v2` endpoints negotiate content strictly and reject a bare `application/json` with `406 Not Acceptable`
+* build: Fixed `make build` failing with "cannot write multiple packages to non-directory" since `scripts/init_dtrack.go` (a second `main` package) was added
+
 ## v0.5.0
 
 FEATURES:

@@ -75,8 +75,8 @@ func TestAPIClientDo_Success(t *testing.T) {
 	if gotContentType != "application/json" {
 		t.Errorf("Content-Type header = %q, want application/json", gotContentType)
 	}
-	if gotAccept != "application/json" {
-		t.Errorf("Accept header = %q, want application/json", gotAccept)
+	if gotAccept != "application/json, application/problem+json;q=0.9" {
+		t.Errorf("Accept header = %q, want application/json, application/problem+json;q=0.9", gotAccept)
 	}
 	if gotBody["name"] != "widget" {
 		t.Errorf("request body name = %v, want widget", gotBody["name"])

@@ -4,8 +4,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 )
+
+// secretNameRegex is the server-side pattern for secret names, from the
+// create-secret-request schema of the /api/v2 OpenAPI spec.
+var secretNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+// requireV5 verifies that the configured server is Dependency-Track v5 or
+// newer. Resources built on the /api/v2 API (which does not exist on v4) call
+// this at the top of every CRUD method; it appends an actionable error and
+// returns false when the server is too old.
+func requireV5(data *Data, resourceName string, diags *diag.Diagnostics) bool {
+	if data.IsV5() {
+		return true
+	}
+
+	diags.AddError(
+		"Dependency-Track v5 Required",
+		fmt.Sprintf("%s uses the /api/v2 API, which is only available on Dependency-Track v5 and newer. "+
+			"The configured server reports version %d.%d.",
+			resourceName, data.ServerVersion.Major, data.ServerVersion.Minor),
+	)
+	return false
+}
 
 // parseCompositeID parses a composite ID in the format "part1/part2" and returns the two parts.
 // The partNames are used for error messages to make them more descriptive.

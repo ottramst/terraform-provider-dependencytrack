@@ -2,6 +2,9 @@
 
 FEATURES:
 
+* provider: New `workload_identity` block authenticates as a service account through workload identity federation (Dependency-Track 5.2+), exchanging a workload's identity token (for example a GitHub Actions OIDC token) for a session at configure time
+* **New Resource:** `dependencytrack_workload_identity_provider` - Manage trusted external token issuers (OIDC or SPIFFE)
+* **New Resource:** `dependencytrack_workload_identity_binding` - Bind a workload identity (subject and optional CEL condition) to a service account
 * **New Resource:** `dependencytrack_service_account` - Manage Dependency-Track 5.2+ service accounts, non-human identities for automation
 * **New Resource:** `dependencytrack_service_account_api_key` - Manage a service account's expiring API keys. The plain text key is available on creation only
 * **New Data Source:** `dependencytrack_service_account` - Read a service account with its team memberships and directly granted permissions
@@ -16,6 +19,7 @@ BUG FIXES:
 
 NOTES:
 
+* provider: The server version is now detected before authenticating, so an unreachable endpoint is reported before any login error
 * resource/dependencytrack_notification_rule: Documented the v5 webhook `publisher_config` keys, including `publishProtobuf` (5.1+) and `signingSecret` (5.2+, references a `dependencytrack_secret` by name)
 
 * Dependency-Track support policy: the provider now supports and tests only non-end-of-life Dependency-Track releases, currently 4.14.x (until upstream EOL in December 2026) and 5.2.x. EOL versions, including Dependency-Track 5.0 and 5.1, get best-effort support. See the README "Support policy" section

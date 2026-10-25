@@ -43,7 +43,8 @@ func testAccAPIDo(t *testing.T, method, path string, body, out any) int {
 		t.Fatalf("build %s %s request: %s", method, path, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	// Same as apiClient: /api/v2 rejects a bare application/json with 406.
+	req.Header.Set("Accept", "application/json, application/problem+json;q=0.9")
 	req.Header.Set("X-Api-Key", apiKey)
 
 	resp, err := http.DefaultClient.Do(req)

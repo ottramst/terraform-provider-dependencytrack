@@ -28,9 +28,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Go needs a build to extract; Actions workflows do not.
+          # Go needs a traced build. autobuild would run the GNUmakefile's
+          # default target (fmt lint install generate), which fails without
+          # golangci-lint, so build explicitly. Actions workflows need no build.
           - language: go
-            build-mode: autobuild
+            build-mode: manual
           - language: actions
             build-mode: none
     steps:
@@ -41,11 +43,15 @@ jobs:
         if: matrix.language == 'go'
         with:
           go-version-file: 'go.mod'
-          cache: true
+          # A warm build cache lets go build skip compiling, leaving CodeQL nothing to trace.
+          cache: false
       - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+      - name: Build
+        if: matrix.build-mode == 'manual'
+        run: go build ./...
       - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: /language:${{ matrix.language }}

@@ -233,6 +233,8 @@ func testAccSkipUnlessV5(t *testing.T) {
 
 // testAccSkipUnlessAtLeast skips the current test unless the server under
 // test is running Dependency-Track major.minor or newer.
+//
+//nolint:unparam // major keeps the gate general; all current gates are 5.x minors
 func testAccSkipUnlessAtLeast(t *testing.T, major, minor int) {
 	t.Helper()
 

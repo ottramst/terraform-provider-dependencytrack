@@ -289,6 +289,8 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewNotificationRuleTagResource,
 		NewSecretResource,
 		NewExtensionConfigResource,
+		NewServiceAccountResource,
+		NewServiceAccountAPIKeyResource,
 	}
 }
 
@@ -315,6 +317,7 @@ func (p *DependencyTrackProvider) DataSources(ctx context.Context) []func() data
 		NewProjectMetricsDataSource,
 		NewProjectViolationsDataSource,
 		NewProjectFindingsDataSource,
+		NewServiceAccountDataSource,
 	}
 }
 

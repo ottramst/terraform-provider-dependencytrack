@@ -410,3 +410,53 @@ func TestApiGetAllPages_SafetyCap(t *testing.T) {
 		t.Fatal("expected an error when the safety cap is exceeded")
 	}
 }
+
+func TestApiGetAllV2Pages_FollowsPageToken(t *testing.T) {
+	const total = 250
+
+	var requestCount int
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		q := r.URL.Query()
+		if q.Get("limit") != "100" {
+			t.Errorf("limit = %q, want 100", q.Get("limit"))
+		}
+		start, _ := strconv.Atoi(q.Get("page_token")) // the test server's opaque token is the next offset
+
+		end := start + 100
+		if end > total {
+			end = total
+		}
+
+		page := v2Page[apiClientTestItem]{}
+		for i := start; i < end; i++ {
+			page.Items = append(page.Items, apiClientTestItem{ID: i})
+		}
+		if end < total {
+			page.NextPageToken = strconv.Itoa(end)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(page)
+	}))
+	defer srv.Close()
+
+	c := newAPIClient(srv.URL, "key", "")
+
+	got, err := apiGetAllV2Pages[apiClientTestItem](context.Background(), c, "/api/v2/things")
+	if err != nil {
+		t.Fatalf("apiGetAllV2Pages returned unexpected error: %s", err)
+	}
+
+	if len(got) != total {
+		t.Fatalf("apiGetAllV2Pages returned %d items, want %d", len(got), total)
+	}
+	if got[total-1].ID != total-1 {
+		t.Fatalf("last item ID = %d, want %d", got[total-1].ID, total-1)
+	}
+	if requestCount != 3 {
+		t.Fatalf("apiGetAllV2Pages made %d requests, want 3", requestCount)
+	}
+}

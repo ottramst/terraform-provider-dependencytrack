@@ -235,6 +235,41 @@ func apiGetAllPages[T any](ctx context.Context, c *apiClient, path string, query
 	return nil, fmt.Errorf("apiGetAllPages: exceeded safety cap of %d pages fetching %s", apiGetAllPagesSafetyCap, path)
 }
 
+// v2Page is one page of a /api/v2 list response. The v2 API paginates with
+// an opaque cursor: next_page_token is absent on the last page.
+type v2Page[T any] struct {
+	Items         []T    `json:"items"`
+	NextPageToken string `json:"next_page_token,omitempty"`
+}
+
+// apiGetAllV2Pages fetches every item of a /api/v2 list endpoint at path by
+// following next_page_token, requesting pages of 100 (the server default).
+func apiGetAllV2Pages[T any](ctx context.Context, c *apiClient, path string) ([]T, error) {
+	var all []T
+	token := ""
+
+	for page := 1; page <= apiGetAllPagesSafetyCap; page++ {
+		q := url.Values{"limit": {"100"}}
+		if token != "" {
+			q.Set("page_token", token)
+		}
+
+		var p v2Page[T]
+		if err := c.Do(ctx, http.MethodGet, path+"?"+q.Encode(), nil, &p); err != nil {
+			return nil, err
+		}
+
+		all = append(all, p.Items...)
+
+		if p.NextPageToken == "" {
+			return all, nil
+		}
+		token = p.NextPageToken
+	}
+
+	return nil, fmt.Errorf("apiGetAllV2Pages: exceeded safety cap of %d pages fetching %s", apiGetAllPagesSafetyCap, path)
+}
+
 // fetchAllPages exhaustively retrieves every item from a client-go paginated
 // list method by requesting fixed-size pages until a short (or empty) page is
 // returned.

@@ -98,6 +98,16 @@ func (r *ManagedUserPermissionsResource) removePermissionFromUser(ctx context.Co
 }
 
 func (r *ManagedUserPermissionsResource) getUserPermissions(ctx context.Context, username string) ([]string, error) {
+	// Service accounts (5.2+) are not managed users; read the permissions
+	// granted to them directly from the service account itself.
+	if name, ok := serviceAccountName(username); ok && r.data.ServerVersion.AtLeast(5, 2) {
+		sa, err := getServiceAccount(ctx, r.data, name)
+		if err != nil || sa == nil {
+			return nil, err
+		}
+		return append([]string{}, sa.Permissions...), nil
+	}
+
 	users, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
 	if err != nil {
 		return nil, err

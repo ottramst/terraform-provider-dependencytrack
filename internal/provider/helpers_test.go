@@ -111,3 +111,25 @@ func TestRequireAtLeast(t *testing.T) {
 		})
 	}
 }
+
+func TestServiceAccountName(t *testing.T) {
+	tests := []struct {
+		username string
+		want     string
+		wantOK   bool
+	}{
+		{"svc:ci", "ci", true},
+		{"SVC:ci", "ci", true},
+		{"Svc:", "", true},
+		{"svc", "", false},
+		{"admin", "", false},
+		{"ci:svc:x", "", false},
+	}
+
+	for _, tt := range tests {
+		got, ok := serviceAccountName(tt.username)
+		if got != tt.want || ok != tt.wantOK {
+			t.Errorf("serviceAccountName(%q) = (%q, %v), want (%q, %v)", tt.username, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}

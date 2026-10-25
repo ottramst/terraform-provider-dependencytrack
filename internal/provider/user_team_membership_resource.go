@@ -258,6 +258,24 @@ func teamsContain(teams []dtrack.Team, teamUUID uuid.UUID) bool {
 }
 
 func (r *UserTeamMembershipResource) verifyMembership(ctx context.Context, username string, teamUUID uuid.UUID) (bool, error) {
+	// Service accounts (5.2+) are not listed with managed, LDAP, or OIDC users.
+	if name, ok := serviceAccountName(username); ok && r.data.ServerVersion.AtLeast(5, 2) {
+		sa, err := getServiceAccount(ctx, r.data, name)
+		if err != nil {
+			return false, err
+		}
+		if sa == nil {
+			// Deleting a service account drops its memberships.
+			return false, nil
+		}
+		for _, team := range sa.Teams {
+			if team.UUID == teamUUID.String() {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+
 	// A user may be managed, LDAP, or OIDC; check each source in turn.
 	managedUsers, err := fetchAllPages(ctx, r.data.Client.User.GetAllManaged)
 	if err != nil {

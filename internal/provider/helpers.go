@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -8,11 +9,54 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 )
 
 // secretNameRegex is the server-side pattern for secret names, from the
 // create-secret-request schema of the /api/v2 OpenAPI spec.
 var secretNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+// serviceAccountNameRegex is the server-side pattern for service account
+// names, from the service-account-name schema of the /api/v2 OpenAPI spec,
+// minus its negative lookahead for the reserved "svc:" prefix (Go's regexp has
+// no lookaheads), which serviceAccountNameValidator checks instead.
+var serviceAccountNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9+=,.:@_-]*$`)
+
+// serviceAccountUsernamePrefix is the reserved username prefix of Dependency-Track
+// service accounts (5.2+). The server matches it case-insensitively.
+const serviceAccountUsernamePrefix = "svc:"
+
+// serviceAccountName returns the service account name for a username that
+// carries the reserved "svc:" prefix, and whether it does.
+func serviceAccountName(username string) (string, bool) {
+	if len(username) < len(serviceAccountUsernamePrefix) ||
+		!strings.EqualFold(username[:len(serviceAccountUsernamePrefix)], serviceAccountUsernamePrefix) {
+		return "", false
+	}
+	return username[len(serviceAccountUsernamePrefix):], true
+}
+
+// serviceAccountNameValidator rejects service account names that start with
+// the reserved "svc:" prefix: the name is given without it.
+type serviceAccountNameValidator struct{}
+
+func (v serviceAccountNameValidator) Description(ctx context.Context) string {
+	return "must not start with the reserved \"svc:\" prefix"
+}
+
+func (v serviceAccountNameValidator) MarkdownDescription(ctx context.Context) string {
+	return "must not start with the reserved `svc:` prefix"
+}
+
+func (v serviceAccountNameValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	if _, ok := serviceAccountName(req.ConfigValue.ValueString()); ok {
+		resp.Diagnostics.AddAttributeError(req.Path, "Invalid Service Account Name",
+			"The service account name must not include the reserved \"svc:\" prefix; Dependency-Track adds it to form the username.")
+	}
+}
 
 // requireV5 verifies that the configured server is Dependency-Track v5 or
 // newer. Resources built on the /api/v2 API (which does not exist on v4) call
@@ -36,6 +80,8 @@ func requireV5(data *Data, resourceName string, diags *diag.Diagnostics) bool {
 // major.minor or newer. Features introduced in a specific v5 minor release
 // (e.g. 5.2 service accounts) call this; it appends an actionable error and
 // returns false when the server is too old.
+//
+//nolint:unparam // major keeps the gate general; all current gates are 5.x minors
 func requireAtLeast(data *Data, major, minor int, feature string, diags *diag.Diagnostics) bool {
 	if data.ServerVersion.AtLeast(major, minor) {
 		return true

@@ -2,6 +2,10 @@
 
 FEATURES:
 
+* **New Resource:** `dependencytrack_service_account` - Manage Dependency-Track 5.2+ service accounts, non-human identities for automation
+* **New Resource:** `dependencytrack_service_account_api_key` - Manage a service account's expiring API keys. The plain text key is available on creation only
+* **New Data Source:** `dependencytrack_service_account` - Read a service account with its team memberships and directly granted permissions
+* resource/dependencytrack_managed_user_permissions, resource/dependencytrack_user_team_membership: Support service accounts by their `svc:` username (Dependency-Track 5.2+)
 * resource/dependencytrack_policy: New `invert_tag_match` attribute (Dependency-Track 5.2+) makes a tag-scoped policy apply to projects that do *not* have its tags. Setting it to `true` on an older server fails with a clear error
 * data-source/dependencytrack_policy: New computed `invert_tag_match` attribute
 * data-source/dependencytrack_project_metrics, data-source/dependencytrack_portfolio_metrics: New computed `kev` attribute, the number of findings whose vulnerability is in CISA's Known Exploited Vulnerabilities catalog (Dependency-Track 5.1+; null on older servers)

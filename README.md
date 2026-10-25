@@ -43,7 +43,7 @@ A handful of attributes behave differently depending on the detected version:
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0 (protocol 6; CI covers 1.9, 1.12, and 1.15)
-- [Go](https://golang.org/doc/install) >= 1.25 (only required to build the provider from source)
+- [Go](https://golang.org/doc/install) >= 1.27 (only required to build the provider from source)
 - [OWASP Dependency-Track](https://dependencytrack.org/) 4.14.x or 5.0.x (see [compatibility](#dependency-track-version-compatibility))
 
 ## Building The Provider

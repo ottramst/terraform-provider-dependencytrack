@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -52,10 +53,18 @@ type DependencyTrackProvider struct {
 
 // DependencyTrackProviderModel describes the provider data model.
 type DependencyTrackProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
-	ApiKey   types.String `tfsdk:"api_key"`
-	Username types.String `tfsdk:"username"`
-	Password types.String `tfsdk:"password"`
+	Endpoint         types.String           `tfsdk:"endpoint"`
+	ApiKey           types.String           `tfsdk:"api_key"`
+	Username         types.String           `tfsdk:"username"`
+	Password         types.String           `tfsdk:"password"`
+	WorkloadIdentity *WorkloadIdentityModel `tfsdk:"workload_identity"`
+}
+
+// WorkloadIdentityModel describes the provider's workload_identity block.
+type WorkloadIdentityModel struct {
+	ProviderName   types.String `tfsdk:"provider_name"`
+	ServiceAccount types.String `tfsdk:"service_account"`
+	Token          types.String `tfsdk:"token"`
 }
 
 func (p *DependencyTrackProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -69,7 +78,7 @@ func (p *DependencyTrackProvider) Schema(ctx context.Context, req provider.Schem
 			"It supports both Dependency-Track v4 (tested against 4.14.x, until its upstream end-of-life in December 2026) and v5 (tested against the latest minor, currently 5.2); end-of-life Dependency-Track versions get best-effort support only. " +
 			"At configure time the provider queries the unauthenticated `GET /api/version` endpoint to detect the server's major version and automatically adapts version-dependent behavior (for example, notification publisher identifiers and the deprecated project `author` field); there is no version attribute to set. " +
 			"If that probe fails, provider configuration fails with an actionable error instead of silently guessing a version. " +
-			"Authenticate with either an `api_key` or a `username`/`password` pair (the two methods are mutually exclusive).",
+			"Authenticate with exactly one of: an `api_key`, a `username`/`password` pair, or a `workload_identity` block (Dependency-Track 5.2+).",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				MarkdownDescription: "The URL of the Dependency-Track server (e.g., https://dtrack.example.com)",
@@ -88,6 +97,29 @@ func (p *DependencyTrackProvider) Schema(ctx context.Context, req provider.Schem
 				MarkdownDescription: "Password for authenticating with Dependency-Track. Must be used with username. Conflicts with api_key authentication.",
 				Optional:            true,
 				Sensitive:           true,
+			},
+			"workload_identity": schema.SingleNestedAttribute{
+				MarkdownDescription: "Authenticate as a service account through workload identity federation (Dependency-Track 5.2+): " +
+					"the provider exchanges a workload's identity token, such as a GitHub Actions OIDC token, for a Dependency-Track session " +
+					"at configure time. The service account needs a `dependencytrack_workload_identity_binding` that matches the token. " +
+					"The session lasts the workload identity provider's `session_lifetime_seconds` (1 hour by default) and is not refreshed, " +
+					"so a run that takes longer fails once it expires. Conflicts with `api_key` and `username`/`password`.",
+				Optional: true,
+				Attributes: map[string]schema.Attribute{
+					"provider_name": schema.StringAttribute{
+						MarkdownDescription: "The name of the Dependency-Track workload identity provider that issued `token`",
+						Required:            true,
+					},
+					"service_account": schema.StringAttribute{
+						MarkdownDescription: "The name of the service account to authenticate as (without the `svc:` prefix)",
+						Required:            true,
+					},
+					"token": schema.StringAttribute{
+						MarkdownDescription: "The workload's identity token (a JWT). Read it from a file with `file()` if the platform provides one",
+						Required:            true,
+						Sensitive:           true,
+					},
+				},
 			},
 		},
 	}
@@ -116,6 +148,7 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 	hasApiKey := !data.ApiKey.IsNull() && data.ApiKey.ValueString() != ""
 	hasUsername := !data.Username.IsNull() && data.Username.ValueString() != ""
 	hasPassword := !data.Password.IsNull() && data.Password.ValueString() != ""
+	hasWorkloadIdentity := data.WorkloadIdentity != nil
 
 	// Check for mutually exclusive authentication methods
 	if hasApiKey && (hasUsername || hasPassword) {
@@ -127,14 +160,24 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 		return
 	}
 
-	// Check that either api_key or username/password is provided
-	if !hasApiKey && (!hasUsername || !hasPassword) {
+	if hasWorkloadIdentity && (hasApiKey || hasUsername || hasPassword) {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("workload_identity"),
+			"Conflicting Authentication Configuration",
+			"workload_identity cannot be combined with api_key or username/password authentication.",
+		)
+		return
+	}
+
+	// Check that an authentication method is provided
+	if !hasWorkloadIdentity && !hasApiKey && (!hasUsername || !hasPassword) {
 		resp.Diagnostics.AddError(
 			"Missing Authentication Configuration",
 			"The provider requires authentication credentials. "+
-				"Provide either:\n"+
-				"  - api_key for API key authentication, OR\n"+
-				"  - username AND password for username/password authentication",
+				"Provide one of:\n"+
+				"  - api_key for API key authentication,\n"+
+				"  - username AND password for username/password authentication, OR\n"+
+				"  - a workload_identity block for workload identity federation (Dependency-Track 5.2+)",
 		)
 		return
 	}
@@ -156,69 +199,26 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 		return
 	}
 
-	var client *dtrack.Client
-	var apiKey string
-	var bearerToken string
-	var err error
-
-	// Create DependencyTrack client based on authentication method
-	if hasApiKey {
-		// Use API key authentication
-		apiKey = data.ApiKey.ValueString()
-		client, err = dtrack.NewClient(data.Endpoint.ValueString(), dtrack.WithAPIKey(apiKey))
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to Create Dependency-Track Client",
-				"An unexpected error occurred when creating the Dependency-Track client with API key. "+
-					"Error: "+err.Error(),
-			)
-			return
-		}
-	} else {
-		// Use username/password authentication - login to get the bearer token
-		// Create a temporary client to perform the login
-		tempClient, err := dtrack.NewClient(data.Endpoint.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to Create Temporary Client",
-				"An unexpected error occurred when creating a temporary Dependency-Track client for login. "+
-					"Error: "+err.Error(),
-			)
-			return
-		}
-
-		// Use the client library's login method
-		bearerToken, err = tempClient.User.Login(ctx, data.Username.ValueString(), data.Password.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Authentication Failed",
-				"Unable to authenticate with username and password. "+
-					"Error: "+err.Error(),
-			)
-			return
-		}
-
-		// Create an authenticated client with the bearer token
-		client, err = dtrack.NewClient(data.Endpoint.ValueString(), dtrack.WithBearerToken(bearerToken))
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Unable to Create Dependency-Track Client",
-				"An unexpected error occurred when creating the Dependency-Track client with bearer token. "+
-					"Error: "+err.Error(),
-			)
-			return
-		}
-	}
+	endpoint := data.Endpoint.ValueString()
 
 	// Detect the Dependency-Track server version via the unauthenticated
-	// GET /api/version endpoint (exposed by both v4 and v5). This is required
-	// (no silent fallback) since resource behavior diverges between major
-	// versions starting in a later task.
-	about, err := client.About.Get(ctx)
+	// GET /api/version endpoint (exposed by both v4 and v5) before
+	// authenticating, since workload identity federation requires 5.2+. This
+	// is required: there is no silent fallback.
+	probeClient, err := dtrack.NewClient(endpoint)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Dependency-Track Client",
+			"An unexpected error occurred when creating the Dependency-Track client. Error: "+err.Error(),
+		)
+		return
+	}
+
+	about, err := probeClient.About.Get(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Detect Dependency-Track Server Version",
-			"The provider requires GET "+data.Endpoint.ValueString()+"/api/version to be reachable. "+
+			"The provider requires GET "+endpoint+"/api/version to be reachable. "+
 				"Check the endpoint configuration and any proxies between Terraform and the Dependency-Track server. "+
 				"Error: "+err.Error(),
 		)
@@ -233,8 +233,66 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 				"The provider requires GET %s/api/version to return a valid Dependency-Track version, "+
 					"but got %q which could not be parsed. Check the endpoint configuration and any proxies "+
 					"between Terraform and the Dependency-Track server. Error: %s",
-				data.Endpoint.ValueString(), about.Version, err,
+				endpoint, about.Version, err,
 			),
+		)
+		return
+	}
+
+	var apiKey string
+	var bearerToken string
+	var clientOption dtrack.ClientOption
+
+	switch {
+	case hasApiKey:
+		apiKey = data.ApiKey.ValueString()
+		clientOption = dtrack.WithAPIKey(apiKey)
+
+	case hasWorkloadIdentity:
+		if !requireAtLeast(&Data{ServerVersion: serverVersion}, 5, 2, "Workload identity federation", &resp.Diagnostics) {
+			return
+		}
+
+		wi := data.WorkloadIdentity
+		var expiresIn int
+		bearerToken, expiresIn, err = exchangeWorkloadIdentityToken(ctx, endpoint,
+			wi.ProviderName.ValueString(), wi.ServiceAccount.ValueString(), wi.Token.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("workload_identity"),
+				"Authentication Failed",
+				"Unable to exchange the workload identity token for a Dependency-Track session. "+
+					"Check that the workload identity provider and service account exist and that a binding of the "+
+					"service account matches the token. Error: "+err.Error(),
+			)
+			return
+		}
+		tflog.Info(ctx, "authenticated through workload identity federation", map[string]interface{}{
+			"service_account":    wi.ServiceAccount.ValueString(),
+			"expires_in_seconds": expiresIn,
+		})
+		clientOption = dtrack.WithBearerToken(bearerToken)
+
+	default:
+		// Username/password: log in to get a bearer token.
+		bearerToken, err = probeClient.User.Login(ctx, data.Username.ValueString(), data.Password.ValueString())
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Authentication Failed",
+				"Unable to authenticate with username and password. "+
+					"Error: "+err.Error(),
+			)
+			return
+		}
+		clientOption = dtrack.WithBearerToken(bearerToken)
+	}
+
+	client, err := dtrack.NewClient(endpoint, clientOption)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unable to Create Dependency-Track Client",
+			"An unexpected error occurred when creating the authenticated Dependency-Track client. "+
+				"Error: "+err.Error(),
 		)
 		return
 	}
@@ -247,11 +305,11 @@ func (p *DependencyTrackProvider) Configure(ctx context.Context, req provider.Co
 	// Create provider data with client and API configuration
 	providerData := &Data{
 		Client:        client,
-		Endpoint:      data.Endpoint.ValueString(),
+		Endpoint:      endpoint,
 		ApiKey:        apiKey,
 		BearerToken:   bearerToken,
 		ServerVersion: serverVersion,
-		api:           newAPIClient(data.Endpoint.ValueString(), apiKey, bearerToken),
+		api:           newAPIClient(endpoint, apiKey, bearerToken),
 	}
 
 	// Make the provider data available to data sources and resources
@@ -291,6 +349,8 @@ func (p *DependencyTrackProvider) Resources(ctx context.Context) []func() resour
 		NewExtensionConfigResource,
 		NewServiceAccountResource,
 		NewServiceAccountAPIKeyResource,
+		NewWorkloadIdentityProviderResource,
+		NewWorkloadIdentityBindingResource,
 	}
 }
 

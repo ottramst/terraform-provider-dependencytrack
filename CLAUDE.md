@@ -62,7 +62,7 @@ The init script (`scripts/init_dtrack.go`) polls `GET /api/version` with exponen
 
 **Provider entry point:** `main.go` → `internal/provider/provider.go`
 
-The provider authenticates via API key OR username/password (mutually exclusive). At `Configure()` it probes the unauthenticated `GET /api/version` endpoint (via client-go's `About.Get`) to detect the server version; if the probe fails or the version is unparseable, configuration fails with an actionable diagnostic (no silent fallback). Provider config is stored in the `Data` struct (`provider.go`), which carries the `dtrack.Client`, endpoint, auth credentials, the parsed `ServerVersion`, and a shared `*apiClient`. This struct is passed to every resource/data source via its `Configure()` method (each holds a `*Data`, not a bare client).
+The provider authenticates via API key, username/password, OR a `workload_identity` block (5.2+ token exchange via `POST /api/v2/oauth/token`, see `workload_identity.go`); the three are mutually exclusive. At `Configure()` it first probes the unauthenticated `GET /api/version` endpoint (via client-go's `About.Get`) to detect the server version; if the probe fails or the version is unparseable, configuration fails with an actionable diagnostic (no silent fallback). Provider config is stored in the `Data` struct (`provider.go`), which carries the `dtrack.Client`, endpoint, auth credentials, the parsed `ServerVersion`, and a shared `*apiClient`. This struct is passed to every resource/data source via its `Configure()` method (each holds a `*Data`, not a bare client).
 
 **Version detection (`version.go`):** `ServerVersion` holds `Major`/`Minor` parsed from the version string. Use `Data.IsV5()` (or `ServerVersion.IsV5()` / `ServerVersion.AtLeast(major, minor)`) to branch on version. Version-dependent behavior currently lives in `provider.go`, `notification_publisher_resource.go`, `project_resource.go`, `project_property_resource.go`, and the `/api/v2` resources (`secret_resource.go`, `extension_config_resource.go`). Gate whole resources/features with `requireV5` or `requireAtLeast(data, major, minor, feature, diags)` (`helpers.go`), which add an actionable error when the server is too old.
 
@@ -79,7 +79,7 @@ The provider authenticates via API key OR username/password (mutually exclusive)
 
 ## Test Patterns
 
-Acceptance tests require a real Dependency-Track instance. Tests follow this structure:
+Acceptance tests require a real Dependency-Track instance. In-process acceptance tests share one provider instance between provider aliases, so a single test config cannot mix differently-authenticated providers (see `TestAccWorkloadIdentityFederation`). Tests follow this structure:
 - `TestAcc<Resource>Resource(t)` — CRUD + import in sequential steps
 - `testAcc<Resource>ResourceConfig(...)` — generates HCL, prefixed with provider config from `testAccProviderConfigWithAPIKey()` (all acceptance tests use API-key auth by convention; only `TestAccProviderAuth_UsernamePassword` uses `testAccProviderConfigWithUsernamePassword()`, as the sole end-to-end coverage of the username/password → `User.Login` bearer-token path)
 - PreCheck functions (`testAccPreCheckAPIKey`, `testAccPreCheckUsernamePassword`) validate env vars

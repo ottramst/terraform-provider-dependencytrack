@@ -95,7 +95,7 @@ Acceptance tests require a real Dependency-Track instance. In-process acceptance
 ## CI
 
 GitHub Actions workflows in `.github/workflows/` (`main.yml` orchestrates `generate`, `lint`, `build`, `test`):
-- Acceptance tests run a matrix of Dependency-Track {4.14.6, 5.2.1} (non-EOL versions only, both required; image tags come from `DT_VERSION`, which defaults in the compose files to the newest of each line) × Terraform {1.9.\*, 1.12.\*, 1.15.\*}
+- Acceptance tests run a matrix of Dependency-Track {4.14.6, 5.2.1} (non-EOL versions only, both required; image tags come from `DT_VERSION`, which defaults in the compose files to the newest of each line) × Terraform {1.16.\*, 1.17.\*} (the two non-EOL minors; HashiCorp supports the two newest)
 - All `setup-go` steps use `go-version-file: go.mod`
 - `make generate` must produce no git diff
 - golangci-lint enforced with zero tolerance (`max-issues-per-linter: 0`)

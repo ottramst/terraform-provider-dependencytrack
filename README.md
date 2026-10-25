@@ -29,7 +29,7 @@ For the complete list of resources and data sources with detailed documentation,
 
 ## Dependency-Track version compatibility
 
-The provider supports both current Dependency-Track major release lines. Acceptance tests run in CI against **Dependency-Track 4.14.6** and **5.2.1** (both legs are required to pass) across Terraform 1.9, 1.12, and 1.15.
+The provider supports both current Dependency-Track major release lines. Acceptance tests run in CI against **Dependency-Track 4.14.6** and **5.2.1** (both legs are required to pass) across Terraform 1.16 and 1.17.
 
 ### Support policy
 
@@ -43,6 +43,8 @@ The provider fully supports the Dependency-Track releases that are not end-of-li
 | 4.14.x after December 2026 | EOL | Best effort |
 
 Dependency-Track only ships patches for the newest v5 minor, so a v5 minor counts as EOL once its successor is released. *Best effort* means the provider is still expected to work: version detection and feature gating stay in place, and features that need a newer server fail with a clear error. But EOL versions are not tested in CI, and a bug that only reproduces on an EOL version may not be fixed. Upgrading Dependency-Track is the recommended remedy.
+
+Terraform follows the same policy. HashiCorp supports the two newest Terraform minor releases, currently **1.17** and **1.16**, and CI tests those. The provider uses plugin protocol 6, so it still works with older Terraform 1.x releases, but EOL Terraform versions are supported on a best-effort basis only.
 
 At configure time the provider makes an unauthenticated `GET {endpoint}/api/version` request to detect the server's major version and adapt version-dependent behavior automatically. There is no version attribute to set. If that probe fails — an unreachable endpoint, a proxy in the way, or an unparseable version string — provider configuration fails with an actionable error rather than silently guessing a version.
 
@@ -60,7 +62,7 @@ A handful of attributes behave differently depending on the detected version:
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0 (protocol 6; CI covers 1.9, 1.12, and 1.15)
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0 (protocol 6). CI tests the non-EOL releases, currently 1.16 and 1.17; older versions get best-effort support (see [support policy](#support-policy))
 - [Go](https://golang.org/doc/install) >= 1.27 (only required to build the provider from source)
 - [OWASP Dependency-Track](https://dependencytrack.org/) 4.14.x or 5.2.x; older v5 minors on a best-effort basis (see [support policy](#support-policy))
 

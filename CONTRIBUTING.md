@@ -61,6 +61,10 @@ CI tests the latest patch of every non-end-of-life Dependency-Track release line
 
 When a release line reaches end-of-life, remove it from the matrix; it then gets best-effort support.
 
+The same applies to Terraform: the `terraform-version` matrix in `.github/workflows/test.yml` covers the two
+newest Terraform minor releases (the ones HashiCorp supports). When a new minor ships, add it, drop the oldest,
+and update the versions in `README.md` and `CLAUDE.md`.
+
 ## Pull requests
 
 - Keep each pull request focused on one change, and add or update acceptance tests for it.

@@ -19,6 +19,7 @@ BUG FIXES:
 
 NOTES:
 
+* Terraform support policy: CI now tests only the non-end-of-life Terraform releases, currently 1.16 and 1.17 (previously 1.9, 1.12 and 1.15, all end-of-life). The provider still works with Terraform >= 1.0, but EOL Terraform versions get best-effort support
 * project: Added `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, issue forms and a project-specific pull request template, and replaced the inherited HashiCorp code of conduct with the Contributor Covenant 2.1
 * ci: All actions are pinned to commit SHAs with least-privilege `permissions`, job timeouts and concurrency groups. CI also runs on pushes to `main`, adds a `go mod tidy` check, unit tests, and a single `CI gate` status check. New workflows: CodeQL, govulncheck and dependency review, OpenSSF Scorecard, and workflow linting (actionlint, zizmor). Releases now publish build provenance attestations
 * provider: The server version is now detected before authenticating, so an unreachable endpoint is reported before any login error

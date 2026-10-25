@@ -29,10 +29,11 @@ jobs:
         dtrack:
           - { version: '4.14.6', compose: docker-compose.yml }
           - { version: '5.2.1', compose: docker-compose.v5.yml }
+        # Only non-EOL Terraform releases: HashiCorp supports the two newest
+        # minor versions, so drop the oldest entry when a new minor ships.
         terraform-version:
-          - '1.9.*'
-          - '1.12.*'
-          - '1.15.*'
+          - '1.16.*'
+          - '1.17.*'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

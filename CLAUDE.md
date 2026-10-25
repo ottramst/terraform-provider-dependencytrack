@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Terraform provider for [OWASP Dependency-Track](https://dependencytrack.org/) built with the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework). Uses `github.com/DependencyTrack/client-go` as the primary API client. All provider code lives in `internal/provider/`.
 
-The provider supports both Dependency-Track v4 (tested against 4.14.x) and v5 (tested against 5.0.x). The server's major version is detected at runtime (see Architecture) and behavior is adapted accordingly; there is no provider version attribute.
+The provider supports both Dependency-Track v4 (tested against 4.14.x) and v5 (tested against the latest minor, currently 5.2). Only non-EOL Dependency-Track versions are supported and tested; EOL versions (older v5 minors, and v4 after its December 2026 EOL) get best-effort support: keep version gating working, but don't add CI legs for them. The server's major version is detected at runtime (see Architecture) and behavior is adapted accordingly; there is no provider version attribute.
 
 ## Common Commands
 
@@ -64,9 +64,9 @@ The init script (`scripts/init_dtrack.go`) polls `GET /api/version` with exponen
 
 The provider authenticates via API key OR username/password (mutually exclusive). At `Configure()` it probes the unauthenticated `GET /api/version` endpoint (via client-go's `About.Get`) to detect the server version; if the probe fails or the version is unparseable, configuration fails with an actionable diagnostic (no silent fallback). Provider config is stored in the `Data` struct (`provider.go`), which carries the `dtrack.Client`, endpoint, auth credentials, the parsed `ServerVersion`, and a shared `*apiClient`. This struct is passed to every resource/data source via its `Configure()` method (each holds a `*Data`, not a bare client).
 
-**Version detection (`version.go`):** `ServerVersion` holds `Major`/`Minor` parsed from the version string. Use `Data.IsV5()` (or `ServerVersion.IsV5()` / `ServerVersion.AtLeast(major, minor)`) to branch on version. Version-dependent behavior currently lives in `provider.go`, `notification_publisher_resource.go`, `project_resource.go`, and `project_property_resource.go`.
+**Version detection (`version.go`):** `ServerVersion` holds `Major`/`Minor` parsed from the version string. Use `Data.IsV5()` (or `ServerVersion.IsV5()` / `ServerVersion.AtLeast(major, minor)`) to branch on version. Version-dependent behavior currently lives in `provider.go`, `notification_publisher_resource.go`, `project_resource.go`, `project_property_resource.go`, and the `/api/v2` resources (`secret_resource.go`, `extension_config_resource.go`). Gate whole resources/features with `requireV5` or `requireAtLeast(data, major, minor, feature, diags)` (`helpers.go`), which add an actionable error when the server is too old.
 
-**Shared HTTP client (`apiclient.go`):** `apiClient` (reachable via `Data.API()`) is a small helper for Dependency-Track endpoints not covered by client-go's typed methods. It centralizes base-URL handling, auth headers, JSON encoding, error classification (`isNotFound`/`isForbidden`), and pagination. Only the `notification_*` resources/data source and `user_team_membership` use it; everything else uses client-go via `Data.Client`. Two pagination helpers request fixed pages of 100 (v5 caps list `pageSize` at 100): `apiGetAllPages` (raw `apiClient`) stops once the collected items reach the `X-Total-Count` header (when present and parseable), falling back to short-page detection; `fetchAllPages` (client-go list methods, several of which never populate `TotalCount`) always stops on the first short page.
+**Shared HTTP client (`apiclient.go`):** `apiClient` (reachable via `Data.API()`) is a small helper for Dependency-Track endpoints not covered by client-go's typed methods. It centralizes base-URL handling, auth headers, JSON encoding, error classification (`isNotFound`/`isForbidden`), and pagination. It is used by the `notification_*` resources/data source, `user_team_membership`, `license_group` data source, and the `/api/v2` resources (`secret`, `extension_config`); everything else uses client-go via `Data.Client`. Two pagination helpers request fixed pages of 100 (v5 caps list `pageSize` at 100): `apiGetAllPages` (raw `apiClient`) stops once the collected items reach the `X-Total-Count` header (when present and parseable), falling back to short-page detection; `fetchAllPages` (client-go list methods, several of which never populate `TotalCount`) always stops on the first short page.
 
 **Resource pattern** (all files in `internal/provider/`):
 - Each resource has a struct holding `*Data` and a model struct with `tfsdk` tags (e.g. `TeamResourceModel`)
@@ -89,12 +89,13 @@ Acceptance tests require a real Dependency-Track instance. Tests follow this str
 **Version-aware test helpers** (`provider_test.go`):
 - `testAccServerVersion(t)` — resolves the server version once per process, preferring `DEPENDENCYTRACK_SERVER_VERSION` and otherwise querying `{endpoint}/api/version`
 - `testAccSkipUnlessV4(t)` / `testAccSkipUnlessV5(t)` — skip a test unless the server is the matching major version
+- `testAccSkipUnlessAtLeast(t, major, minor)` — skip a test unless the server is at least `major.minor` (for features added in a v5 minor release)
 - `testAccPublisherClass(t)` / `testAccEmailPublisherClass(t)` — return a notification `publisher_class` valid for the server under test (FQCN on v4, extension name on v5)
 
 ## CI
 
 GitHub Actions workflows in `.github/workflows/` (`main.yml` orchestrates `generate`, `lint`, `build`, `test`):
-- Acceptance tests run a matrix of Dependency-Track {4.14.2, 5.0.2} (both required) × Terraform {1.9.\*, 1.12.\*, 1.15.\*}
+- Acceptance tests run a matrix of Dependency-Track {4.14.6, 5.2.1} (non-EOL versions only, both required; image tags come from `DT_VERSION`, which defaults in the compose files to the newest of each line) × Terraform {1.9.\*, 1.12.\*, 1.15.\*}
 - All `setup-go` steps use `go-version-file: go.mod`
 - `make generate` must produce no git diff
 - golangci-lint enforced with zero tolerance (`max-issues-per-linter: 0`)

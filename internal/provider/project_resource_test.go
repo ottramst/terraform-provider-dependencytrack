@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/compare"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
@@ -136,4 +137,67 @@ resource "dependencytrack_project" "test" {
   active      = true
 }
 `
+}
+
+// TestAccProjectResource_Parent covers setting, changing and removing a
+// project's parent. Removing parent_uuid must clear the parent on the server:
+// v5 documents that an update without a parent clears it (#7312), while v4
+// documents it as leaving the parent unchanged.
+func TestAccProjectResource_Parent(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProjectResourceConfigParent("dependencytrack_project.parent_a.id"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(
+						"dependencytrack_project.test", tfjsonpath.New("parent_uuid"),
+						"dependencytrack_project.parent_a", tfjsonpath.New("id"),
+						compare.ValuesSame(),
+					),
+				},
+			},
+			{
+				Config: testAccProjectResourceConfigParent("dependencytrack_project.parent_b.id"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.CompareValuePairs(
+						"dependencytrack_project.test", tfjsonpath.New("parent_uuid"),
+						"dependencytrack_project.parent_b", tfjsonpath.New("id"),
+						compare.ValuesSame(),
+					),
+				},
+			},
+			{
+				Config: testAccProjectResourceConfigParent("null"),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_project.test",
+						tfjsonpath.New("parent_uuid"),
+						knownvalue.Null(),
+					),
+				},
+			},
+		},
+	})
+}
+
+func testAccProjectResourceConfigParent(parentRef string) string {
+	return testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
+resource "dependencytrack_project" "parent_a" {
+  name    = "Parent Project A"
+  version = "1.0.0"
+}
+
+resource "dependencytrack_project" "parent_b" {
+  name    = "Parent Project B"
+  version = "1.0.0"
+}
+
+resource "dependencytrack_project" "test" {
+  name        = "Child Project"
+  version     = "1.0.0"
+  parent_uuid = %[1]s
+}
+`, parentRef)
 }

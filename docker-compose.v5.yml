@@ -1,6 +1,6 @@
 services:
   apiserver:
-    image: ghcr.io/dependencytrack/apiserver:5.0.2
+    image: ghcr.io/dependencytrack/apiserver:${DT_VERSION:-5.2.1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/dependencytrack/frontend:5.0.2
+    image: ghcr.io/dependencytrack/frontend:${DT_VERSION:-5.2.1}
     environment:
       API_BASE_URL: http://localhost:8081
     ports:

@@ -1,6 +1,10 @@
 package provider
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
+)
 
 func TestParseCompositeID3(t *testing.T) {
 	tests := []struct {
@@ -75,6 +79,34 @@ func TestCanonicalJSONString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := canonicalJSONString(tt.in); got != tt.want {
 				t.Errorf("canonicalJSONString(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRequireAtLeast(t *testing.T) {
+	tests := []struct {
+		name    string
+		server  ServerVersion
+		want    bool
+		wantErr bool
+	}{
+		{"older v4", ServerVersion{Major: 4, Minor: 14}, false, true},
+		{"older v5 minor", ServerVersion{Major: 5, Minor: 1}, false, true},
+		{"exact", ServerVersion{Major: 5, Minor: 2}, true, false},
+		{"newer minor", ServerVersion{Major: 5, Minor: 3}, true, false},
+		{"newer major", ServerVersion{Major: 6, Minor: 0}, true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			got := requireAtLeast(&Data{ServerVersion: tt.server}, 5, 2, "Feature", &diags)
+			if got != tt.want {
+				t.Errorf("requireAtLeast(%d.%d, 5, 2) = %v, want %v", tt.server.Major, tt.server.Minor, got, tt.want)
+			}
+			if diags.HasError() != tt.wantErr {
+				t.Errorf("requireAtLeast(%d.%d, 5, 2) HasError = %v, want %v", tt.server.Major, tt.server.Minor, diags.HasError(), tt.wantErr)
 			}
 		})
 	}

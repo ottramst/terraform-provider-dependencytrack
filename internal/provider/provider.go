@@ -66,7 +66,7 @@ func (p *DependencyTrackProvider) Metadata(ctx context.Context, req provider.Met
 func (p *DependencyTrackProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Terraform provider for [OWASP Dependency-Track](https://dependencytrack.org/). " +
-			"It supports both Dependency-Track v4 (tested against 4.14.x) and v5 (tested against 5.0.x). " +
+			"It supports both Dependency-Track v4 (tested against 4.14.x, until its upstream end-of-life in December 2026) and v5 (tested against the latest minor, currently 5.2); end-of-life Dependency-Track versions get best-effort support only. " +
 			"At configure time the provider queries the unauthenticated `GET /api/version` endpoint to detect the server's major version and automatically adapts version-dependent behavior (for example, notification publisher identifiers and the deprecated project `author` field); there is no version attribute to set. " +
 			"If that probe fails, provider configuration fails with an actionable error instead of silently guessing a version. " +
 			"Authenticate with either an `api_key` or a `username`/`password` pair (the two methods are mutually exclusive).",

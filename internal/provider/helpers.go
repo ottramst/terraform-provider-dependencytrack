@@ -32,6 +32,23 @@ func requireV5(data *Data, resourceName string, diags *diag.Diagnostics) bool {
 	return false
 }
 
+// requireAtLeast verifies that the configured server is Dependency-Track
+// major.minor or newer. Features introduced in a specific v5 minor release
+// (e.g. 5.2 service accounts) call this; it appends an actionable error and
+// returns false when the server is too old.
+func requireAtLeast(data *Data, major, minor int, feature string, diags *diag.Diagnostics) bool {
+	if data.ServerVersion.AtLeast(major, minor) {
+		return true
+	}
+
+	diags.AddError(
+		fmt.Sprintf("Dependency-Track %d.%d Required", major, minor),
+		fmt.Sprintf("%s requires Dependency-Track %d.%d or newer. The configured server reports version %d.%d.",
+			feature, major, minor, data.ServerVersion.Major, data.ServerVersion.Minor),
+	)
+	return false
+}
+
 // parseCompositeID parses a composite ID in the format "part1/part2" and returns the two parts.
 // The partNames are used for error messages to make them more descriptive.
 func parseCompositeID(id string, part1Name, part2Name string) (string, string, error) {

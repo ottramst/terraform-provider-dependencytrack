@@ -205,7 +205,7 @@ func (r *OIDCGroupResource) ImportState(ctx context.Context, req resource.Import
 // GetAllGroups issues a bare GET on /api/v1/oidc/group with no pagination
 // parameters. This is safe: unlike /api/v1/licenseGroup, the OIDC group
 // endpoint is not paginated. Empirically verified against Dependency-Track
-// v5.0.2 by seeding 120 groups: a bare GET returned all 120 in a single
+// v5.0.2 (120 groups) and re-verified on v5.2.1 (110 groups): a bare GET returned every group in a single
 // response, and pageSize/pageNumber query parameters were ignored (page 1 and
 // page 2 returned the identical full set, and no X-Total-Count header was
 // emitted). Routing this through apiGetAllPages would in fact break it — with

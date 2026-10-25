@@ -2,6 +2,8 @@
 
 NOTES:
 
+* Dependency-Track support policy: the provider now supports and tests only non-end-of-life Dependency-Track releases, currently 4.14.x (until upstream EOL in December 2026) and 5.2.x. EOL versions, including Dependency-Track 5.0 and 5.1, get best-effort support. See the README "Support policy" section
+* tests: Acceptance tests now run against Dependency-Track 4.14.6 and 5.2.1 (previously 4.14.2 and 5.0.2). The compose stacks take the image tag from `DT_VERSION`
 * build: The provider now requires Go 1.27 to build from source (Go 1.25 is end-of-life). Dependencies were updated, and golangci-lint is pinned to v2.15.0 in CI
 
 ## v0.6.0

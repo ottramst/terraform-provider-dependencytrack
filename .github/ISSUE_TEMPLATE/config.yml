@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and usage help
+    url: https://github.com/ottramst/terraform-provider-dependencytrack/discussions
+    about: Ask questions and discuss ideas in GitHub Discussions.
+  - name: Security vulnerability
+    url: https://github.com/ottramst/terraform-provider-dependencytrack/security/advisories/new
+    about: Report security vulnerabilities privately.
+  - name: Dependency-Track issues
+    url: https://github.com/DependencyTrack/dependency-track/issues
+    about: Problems with Dependency-Track itself, rather than this provider.

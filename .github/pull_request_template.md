@@ -1,16 +1,15 @@
-## Related Issue
+## Related issue
 
-Fixes # <!-- INSERT ISSUE NUMBER -->
+Fixes #<!-- issue number -->
 
 ## Description
 
-In plain English, describe your approach to addressing the issue linked above. For example, if you made a particular design decision, let us know why you chose this path instead of another solution.
+<!-- What does this change, and why? Call out any design decisions or trade-offs. -->
 
-<!-- heimdall_github_prtemplate:grc-pci_dss-2024-01-05 -->
-## Rollback Plan
+## Checklist
 
-- [ ] If a change needs to be reverted, we will roll out an update to the code within 7 days.
-
-## Changes to Security Controls
-
-Are there any changes to security controls (access controls, encryption, logging) in this pull request? If so, explain.
+- [ ] Acceptance tests added or updated (`TestAcc...`), and `make testacc` passes against a local Dependency-Track stack
+- [ ] Tested against Dependency-Track v4 and v5 where behavior differs (or the feature is version-gated with `requireV5`/`requireAtLeast`)
+- [ ] `make generate` run, and the regenerated `docs/` committed
+- [ ] `make lint` passes
+- [ ] `CHANGELOG.md` updated under `## Unreleased`

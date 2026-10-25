@@ -1,3 +1,9 @@
+## Unreleased
+
+NOTES:
+
+* build: The provider now requires Go 1.27 to build from source (Go 1.25 is end-of-life). Dependencies were updated, and golangci-lint is pinned to v2.15.0 in CI
+
 ## v0.6.0
 
 FEATURES:

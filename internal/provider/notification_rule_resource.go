@@ -147,9 +147,13 @@ func (r *NotificationRuleResource) Schema(ctx context.Context, req resource.Sche
 				Required:            true,
 			},
 			"publisher_config": schema.StringAttribute{
-				MarkdownDescription: "Publisher-specific configuration (JSON string)",
-				Optional:            true,
-				Computed:            true,
+				MarkdownDescription: "Publisher-specific configuration (JSON string). The keys depend on the publisher and the Dependency-Track version. " +
+					"For example, the v5 `webhook` publisher takes `destinationUrl` (required), optional `authHeaderName`/`authHeaderValue`, " +
+					"`publishProtobuf` (Dependency-Track 5.1+, send Protobuf instead of the rendered template), and " +
+					"`signingSecret` (Dependency-Track 5.2+, the name of a `dependencytrack_secret` used to sign each payload with HMAC-SHA256). " +
+					"Values marked as secret references, such as `authHeaderValue` and `signingSecret`, take a secret name, not the secret itself.",
+				Optional: true,
+				Computed: true,
 				// Carry the prior value into update plans when the config is
 				// null: DT v5 populates the publisher's default config on rule
 				// create and rejects updates that omit publisherConfig when

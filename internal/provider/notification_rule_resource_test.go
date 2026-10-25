@@ -316,3 +316,50 @@ resource "dependencytrack_notification_rule" "test_teams" {
 }
 `, suffix, publisherClass, suffix)
 }
+
+// TestAccNotificationRuleResource_SignedWebhook wires a dependencytrack_secret
+// into the v5.2+ webhook publisher's signingSecret, which takes a secret name.
+func TestAccNotificationRuleResource_SignedWebhook(t *testing.T) {
+	testAccSkipUnlessAtLeast(t, 5, 2)
+
+	suffix := randomSuffix()
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProviderConfigWithAPIKey() + fmt.Sprintf(`
+data "dependencytrack_notification_publisher" "webhook" {
+  name = "Webhook"
+}
+
+resource "dependencytrack_secret" "signing" {
+  name  = "acc-webhook-signing-%[1]s"
+  value = "s3cr3t-signing-key"
+}
+
+resource "dependencytrack_notification_rule" "signed" {
+  name      = "Signed Webhook %[1]s"
+  scope     = "PORTFOLIO"
+  publisher = data.dependencytrack_notification_publisher.webhook.id
+
+  notify_on = ["NEW_VULNERABILITY"]
+
+  publisher_config = jsonencode({
+    destinationUrl  = "https://example.com/webhook"
+    signingSecret   = dependencytrack_secret.signing.name
+    publishProtobuf = true
+  })
+}
+`, suffix),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(
+						"dependencytrack_notification_rule.signed",
+						tfjsonpath.New("publisher_config"),
+						knownvalue.StringExact(fmt.Sprintf(`{"destinationUrl":"https://example.com/webhook","publishProtobuf":true,"signingSecret":"acc-webhook-signing-%s"}`, suffix)),
+					),
+				},
+			},
+		},
+	})
+}

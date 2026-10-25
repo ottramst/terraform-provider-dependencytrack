@@ -39,6 +39,11 @@ func TestAccPolicyDataSource(t *testing.T) {
 					),
 					statecheck.ExpectKnownValue(
 						"data.dependencytrack_policy.test",
+						tfjsonpath.New("invert_tag_match"),
+						knownvalue.Bool(false),
+					),
+					statecheck.ExpectKnownValue(
+						"data.dependencytrack_policy.test",
 						tfjsonpath.New("include_children"),
 						knownvalue.Bool(false),
 					),

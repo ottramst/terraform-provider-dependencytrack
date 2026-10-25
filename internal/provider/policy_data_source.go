@@ -32,6 +32,7 @@ type PolicyDataSourceModel struct {
 	ViolationState  types.String `tfsdk:"violation_state"`
 	IncludeChildren types.Bool   `tfsdk:"include_children"`
 	Global          types.Bool   `tfsdk:"global"`
+	InvertTagMatch  types.Bool   `tfsdk:"invert_tag_match"`
 	Conditions      types.List   `tfsdk:"conditions"`
 }
 
@@ -71,6 +72,10 @@ func (d *PolicyDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 			"global": schema.BoolAttribute{
 				Computed:            true,
 				MarkdownDescription: "Whether this is a global policy",
+			},
+			"invert_tag_match": schema.BoolAttribute{
+				Computed:            true,
+				MarkdownDescription: "Whether the policy's tag scope is inverted, so that it applies to projects that do not have any of the policy's tags. Always `false` on Dependency-Track versions before 5.2",
 			},
 			"conditions": schema.ListNestedAttribute{
 				Computed:            true,
@@ -152,6 +157,12 @@ func (d *PolicyDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	data.ViolationState = types.StringValue(string(policy.ViolationState))
 	data.IncludeChildren = types.BoolValue(policy.IncludeChildren)
 	data.Global = types.BoolValue(policy.Global)
+
+	data.InvertTagMatch, err = readPolicyInvertTagMatch(ctx, d.data, policyUUID)
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy, got error: %s", err))
+		return
+	}
 
 	// Build conditions list
 	if len(policy.PolicyConditions) > 0 {

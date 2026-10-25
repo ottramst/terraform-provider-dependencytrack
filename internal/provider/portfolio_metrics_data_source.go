@@ -57,6 +57,7 @@ type PortfolioMetricsDataSourceModel struct {
 	PolicyViolationsOperationalTotal     types.Int64   `tfsdk:"policy_violations_operational_total"`
 	PolicyViolationsOperationalAudited   types.Int64   `tfsdk:"policy_violations_operational_audited"`
 	PolicyViolationsOperationalUnaudited types.Int64   `tfsdk:"policy_violations_operational_unaudited"`
+	KEV                                  types.Int64   `tfsdk:"kev"`
 }
 
 func (d *PortfolioMetricsDataSource) Metadata(ctx context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -203,6 +204,10 @@ func (d *PortfolioMetricsDataSource) Schema(ctx context.Context, req datasource.
 				Computed:            true,
 				MarkdownDescription: "Number of unaudited operational policy violations",
 			},
+			"kev": schema.Int64Attribute{
+				Computed:            true,
+				MarkdownDescription: "Number of findings whose vulnerability is listed in CISA's Known Exploited Vulnerabilities (KEV) catalog. Requires Dependency-Track 5.1 or newer; null on older servers",
+			},
 		},
 	}
 }
@@ -273,6 +278,12 @@ func (d *PortfolioMetricsDataSource) Read(ctx context.Context, req datasource.Re
 	data.PolicyViolationsOperationalTotal = types.Int64Value(int64(metrics.PolicyViolationsOperationalTotal))
 	data.PolicyViolationsOperationalAudited = types.Int64Value(int64(metrics.PolicyViolationsOperationalAudited))
 	data.PolicyViolationsOperationalUnaudited = types.Int64Value(int64(metrics.PolicyViolationsOperationalUnaudited))
+
+	data.KEV, err = readKEVMetric(ctx, d.data, "/api/v1/metrics/portfolio/current")
+	if err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read portfolio metrics, got error: %s", err))
+		return
+	}
 
 	tflog.Trace(ctx, "read a portfolio metrics data source")
 

@@ -80,7 +80,7 @@ func (d *OIDCGroupDataSource) Read(ctx context.Context, req datasource.ReadReque
 
 	// GetAllGroups issues a bare, unpaginated GET on /api/v1/oidc/group. This
 	// is safe (no 100-item truncation): the OIDC group endpoint is not
-	// paginated. Empirically verified against Dependency-Track v5.0.2 by
+	// paginated. Empirically verified against Dependency-Track v5.0.2 and v5.2.1 by
 	// seeding 120 groups — a bare GET returned all 120, and pageSize/pageNumber
 	// were ignored. See OIDCGroupResource.findGroup for the full rationale.
 	groups, err := d.data.Client.OIDC.GetAllGroups(ctx)

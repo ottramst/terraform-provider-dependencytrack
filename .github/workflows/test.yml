@@ -10,16 +10,25 @@ jobs:
   test:
     name: Terraform Provider Acceptance Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       DEPENDENCYTRACK_ENDPOINT: http://localhost:8081
       DEPENDENCYTRACK_USERNAME: admin
       DEPENDENCYTRACK_PASSWORD: admin123
+      # DT_VERSION selects the compose image tag; DEPENDENCYTRACK_SERVER_VERSION
+      # lets the tests skip the /api/version probe.
+      DT_VERSION: ${{ matrix.dtrack.version }}
+      DEPENDENCYTRACK_SERVER_VERSION: ${{ matrix.dtrack.version }}
     strategy:
       fail-fast: false
       matrix:
+        # Only non-EOL Dependency-Track releases are tested (latest patch of
+        # each): v4 4.14.x until its December 2026 EOL, and the newest v5
+        # minor. EOL versions get best-effort support only (see README).
+        # Keep the defaults in docker-compose*.yml in sync with these entries.
         dtrack:
-          - { version: '4.14.2', compose: docker-compose.yml }
-          - { version: '5.0.2', compose: docker-compose.v5.yml }
+          - { version: '4.14.6', compose: docker-compose.yml }
+          - { version: '5.2.1', compose: docker-compose.v5.yml }
         terraform-version:
           - '1.9.*'
           - '1.12.*'

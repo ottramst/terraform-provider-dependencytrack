@@ -186,7 +186,7 @@ func testAccServerVersion(t *testing.T) ServerVersion {
 // testAccPublisherClass returns a webhook publisher_class value valid for the
 // server under test: Dependency-Track v4 identifies notification publishers
 // by fully qualified Java class name, while v5 identifies them by extension
-// name (the v5.0.2 default publishers list "console", "email", "jira",
+// name (the v5.0.2 and v5.2.1 default publishers list "console", "email", "jira",
 // "kafka", "mattermost", "msteams", "slack", "webex" and "webhook").
 func testAccPublisherClass(t *testing.T) string {
 	t.Helper()
@@ -223,12 +223,22 @@ func testAccSkipUnlessV4(t *testing.T) {
 
 // testAccSkipUnlessV5 skips the current test unless the server under test is
 // running Dependency-Track 5.x or newer.
-//
-//nolint:unused // not yet called; v5-only acceptance tests land in a later task
 func testAccSkipUnlessV5(t *testing.T) {
 	t.Helper()
 
 	if !testAccServerVersion(t).IsV5() {
 		t.Skip("test requires a Dependency-Track v5 server")
+	}
+}
+
+// testAccSkipUnlessAtLeast skips the current test unless the server under
+// test is running Dependency-Track major.minor or newer.
+//
+//nolint:unused // first callers land with the Dependency-Track 5.2 features
+func testAccSkipUnlessAtLeast(t *testing.T, major, minor int) {
+	t.Helper()
+
+	if v := testAccServerVersion(t); !v.AtLeast(major, minor) {
+		t.Skipf("test requires Dependency-Track %d.%d or newer (server is %s)", major, minor, v)
 	}
 }

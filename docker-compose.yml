@@ -1,6 +1,6 @@
 services:
   apiserver:
-    image: dependencytrack/apiserver:4.14.2
+    image: dependencytrack/apiserver:${DT_VERSION:-4.14.6}
     environment:
       ALPINE_DATABASE_MODE: external
       ALPINE_DATABASE_URL: "jdbc:postgresql://postgres:5432/postgres"
@@ -17,7 +17,7 @@ services:
         condition: service_healthy
 
   frontend:
-    image: dependencytrack/frontend:4.14.2
+    image: dependencytrack/frontend:${DT_VERSION:-4.14.6}
     environment:
       - API_BASE_URL=http://localhost:8081
     ports:

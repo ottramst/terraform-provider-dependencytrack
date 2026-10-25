@@ -17,6 +17,13 @@ import (
 // Either way every counter must come back as zero.
 func TestAccProjectMetricsDataSource(t *testing.T) {
 	suffix := randomSuffix()
+
+	// kev exists from Dependency-Track 5.1; older servers report null.
+	var kevCheck knownvalue.Check = knownvalue.Null()
+	if testAccServerVersion(t).AtLeast(5, 1) {
+		kevCheck = knownvalue.Int64Exact(0)
+	}
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -58,6 +65,11 @@ func TestAccProjectMetricsDataSource(t *testing.T) {
 						"data.dependencytrack_project_metrics.test",
 						tfjsonpath.New("inherited_risk_score"),
 						knownvalue.Float64Exact(0),
+					),
+					statecheck.ExpectKnownValue(
+						"data.dependencytrack_project_metrics.test",
+						tfjsonpath.New("kev"),
+						kevCheck,
 					),
 				},
 			},

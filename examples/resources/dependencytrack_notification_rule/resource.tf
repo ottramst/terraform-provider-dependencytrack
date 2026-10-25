@@ -55,3 +55,32 @@ resource "dependencytrack_notification_rule" "system_alerts" {
     "DATASOURCE_MIRRORING"
   ]
 }
+
+# Dependency-Track 5.2+: signed webhook. The receiver can verify each payload's
+# HMAC-SHA256 signature with the shared secret.
+resource "dependencytrack_secret" "webhook_signing" {
+  name  = "webhook-signing-secret"
+  value = var.webhook_signing_secret
+}
+
+resource "dependencytrack_notification_rule" "signed_webhook" {
+  name      = "Signed Webhook"
+  scope     = "PORTFOLIO"
+  publisher = data.dependencytrack_notification_publisher.webhook.id
+
+  notify_on = ["NEW_VULNERABILITY"]
+
+  publisher_config = jsonencode({
+    destinationUrl = "https://hooks.example.com/dependency-track"
+    signingSecret  = dependencytrack_secret.webhook_signing.name
+  })
+}
+
+data "dependencytrack_notification_publisher" "webhook" {
+  name = "Webhook"
+}
+
+variable "webhook_signing_secret" {
+  type      = string
+  sensitive = true
+}

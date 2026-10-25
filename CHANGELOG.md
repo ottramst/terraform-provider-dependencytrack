@@ -1,6 +1,18 @@
 ## Unreleased
 
+FEATURES:
+
+* resource/dependencytrack_policy: New `invert_tag_match` attribute (Dependency-Track 5.2+) makes a tag-scoped policy apply to projects that do *not* have its tags. Setting it to `true` on an older server fails with a clear error
+* data-source/dependencytrack_policy: New computed `invert_tag_match` attribute
+* data-source/dependencytrack_project_metrics, data-source/dependencytrack_portfolio_metrics: New computed `kev` attribute, the number of findings whose vulnerability is in CISA's Known Exploited Vulnerabilities catalog (Dependency-Track 5.1+; null on older servers)
+
+BUG FIXES:
+
+* resource/dependencytrack_policy: Updating a policy no longer resets `includeChildren` and `onlyLatestProjectVersion` (and, on 5.2+, `invertTagMatch`) to `false` when they were set outside Terraform, for example in the UI. Dependency-Track's update endpoint overwrites these fields from the request, so the provider now sends back the server's current values for fields it does not manage
+
 NOTES:
+
+* resource/dependencytrack_notification_rule: Documented the v5 webhook `publisher_config` keys, including `publishProtobuf` (5.1+) and `signingSecret` (5.2+, references a `dependencytrack_secret` by name)
 
 * Dependency-Track support policy: the provider now supports and tests only non-end-of-life Dependency-Track releases, currently 4.14.x (until upstream EOL in December 2026) and 5.2.x. EOL versions, including Dependency-Track 5.0 and 5.1, get best-effort support. See the README "Support policy" section
 * tests: Acceptance tests now run against Dependency-Track 4.14.6 and 5.2.1 (previously 4.14.2 and 5.0.2). The compose stacks take the image tag from `DT_VERSION`

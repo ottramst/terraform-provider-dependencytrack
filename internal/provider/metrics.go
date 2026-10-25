@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 // Timing knobs for currentMetricsWithRefresh, overridable in unit tests.
@@ -60,4 +63,26 @@ func currentMetricsWithRefresh[T any](
 			return m, false, nil
 		}
 	}
+}
+
+// readKEVMetric returns the "kev" count (findings whose vulnerability is in
+// CISA's Known Exploited Vulnerabilities catalog) from the metrics snapshot at
+// path. Dependency-Track added it in 5.1 and client-go's metrics structs lack
+// it, so it is read with a raw request; older servers yield null. A snapshot
+// that has not been computed yet (v4's empty body) also yields null.
+func readKEVMetric(ctx context.Context, data *Data, path string) (types.Int64, error) {
+	if !data.ServerVersion.AtLeast(5, 1) {
+		return types.Int64Null(), nil
+	}
+
+	var m struct {
+		KEV *int64 `json:"kev"`
+	}
+	if err := data.API().Do(ctx, http.MethodGet, path, nil, &m); err != nil {
+		return types.Int64Null(), err
+	}
+	if m.KEV == nil {
+		return types.Int64Null(), nil
+	}
+	return types.Int64Value(*m.KEV), nil
 }

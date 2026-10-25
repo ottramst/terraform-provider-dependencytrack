@@ -3,15 +3,18 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	dtrack "github.com/DependencyTrack/client-go"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
@@ -30,12 +33,13 @@ func NewPolicyResource() resource.Resource {
 
 // PolicyResource defines the resource implementation.
 //
-// IMPORTANT NOTE: Testing has revealed that the Dependency-Track API (as of v4.x) ignores
-// the includeChildren and global fields during policy creation and update operations.
-// The API always defaults global to true and includeChildren to false, regardless
-// of what values are sent. Therefore, these fields are read-only (Computed) in the
-// Terraform schema to accurately reflect API behavior and prevent perpetual drift.
-// Users who need to control these values should file an issue with the Dependency-Track project.
+// The Dependency-Track API ignores includeChildren and global on policy
+// creation, so both are read-only (Computed) here. Policy updates, however,
+// overwrite includeChildren, onlyLatestProjectVersion and (on 5.2+)
+// invertTagMatch with whatever the request carries, and client-go's Policy
+// cannot express all of them. Updates therefore go through updatePolicy,
+// which reads the stored policy first and sends back the server's values for
+// every field this resource does not manage.
 type PolicyResource struct {
 	data *Data
 }
@@ -48,6 +52,7 @@ type PolicyResourceModel struct {
 	ViolationState  types.String `tfsdk:"violation_state"`
 	IncludeChildren types.Bool   `tfsdk:"include_children"`
 	Global          types.Bool   `tfsdk:"global"`
+	InvertTagMatch  types.Bool   `tfsdk:"invert_tag_match"`
 	Conditions      types.List   `tfsdk:"conditions"`
 }
 
@@ -104,6 +109,12 @@ func (r *PolicyResource) Schema(ctx context.Context, req resource.SchemaRequest,
 			"global": schema.BoolAttribute{
 				Computed:            true,
 				MarkdownDescription: "Whether this is a global policy. This field is read-only as the Dependency-Track API always sets it to true and does not support changing it.",
+			},
+			"invert_tag_match": schema.BoolAttribute{
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+				MarkdownDescription: "Whether the policy's tag scope is inverted, so that it applies to projects that do **not** have any of the policy's tags. Requires Dependency-Track 5.2 or newer; on older servers it can only be `false`. Default: `false`",
 			},
 			"conditions": schema.ListNestedAttribute{
 				Optional:            true,
@@ -168,7 +179,7 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
-	if resp.Diagnostics.HasError() {
+	if resp.Diagnostics.HasError() || !r.checkInvertTagMatchSupported(&data, &resp.Diagnostics) {
 		return
 	}
 
@@ -185,6 +196,14 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create policy, got error: %s", err))
 		return
+	}
+
+	// Policy creation ignores invertTagMatch, so set it with a follow-up update.
+	if data.InvertTagMatch.ValueBool() {
+		if err := r.updatePolicy(ctx, createdPolicy.UUID, &data); err != nil {
+			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to set invert_tag_match on policy, got error: %s", err))
+			return
+		}
 	}
 
 	// Create conditions if any
@@ -221,6 +240,10 @@ func (r *PolicyResource) Create(ctx context.Context, req resource.CreateRequest,
 
 	// Update model with created values
 	r.updateModelFromAPI(&data, &readPolicy)
+	if err := r.readInvertTagMatch(ctx, createdPolicy.UUID, &data); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy after create, got error: %s", err))
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -249,6 +272,10 @@ func (r *PolicyResource) Read(ctx context.Context, req resource.ReadRequest, res
 
 	// Update model with values from API
 	r.updateModelFromAPI(&data, &policy)
+	if err := r.readInvertTagMatch(ctx, policyUUID, &data); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy, got error: %s", err))
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -259,7 +286,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 
-	if resp.Diagnostics.HasError() {
+	if resp.Diagnostics.HasError() || !r.checkInvertTagMatchSupported(&plan, &resp.Diagnostics) {
 		return
 	}
 
@@ -269,17 +296,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 		return
 	}
 
-	// Update policy basic attributes
-	// Note: We don't set IncludeChildren or Global because the API ignores these fields
-	policy := dtrack.Policy{
-		UUID:           policyUUID,
-		Name:           plan.Name.ValueString(),
-		Operator:       dtrack.PolicyOperator(plan.Operator.ValueString()),
-		ViolationState: dtrack.PolicyViolationState(plan.ViolationState.ValueString()),
-	}
-
-	updatedPolicy, err := r.data.Client.Policy.Update(ctx, policy)
-	if err != nil {
+	if err := r.updatePolicy(ctx, policyUUID, &plan); err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update policy, got error: %s", err))
 		return
 	}
@@ -317,7 +334,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 			Value:    condition.Value.ValueString(),
 		}
 
-		createdCondition, err := r.data.Client.PolicyCondition.Create(ctx, updatedPolicy.UUID, apiCondition)
+		createdCondition, err := r.data.Client.PolicyCondition.Create(ctx, policyUUID, apiCondition)
 		if err != nil {
 			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create policy condition, got error: %s", err))
 			return
@@ -327,7 +344,7 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 	}
 
 	// Read back the policy to get complete state
-	readPolicy, err := r.data.Client.Policy.Get(ctx, updatedPolicy.UUID)
+	readPolicy, err := r.data.Client.Policy.Get(ctx, policyUUID)
 	if err != nil {
 		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy after update, got error: %s", err))
 		return
@@ -335,6 +352,10 @@ func (r *PolicyResource) Update(ctx context.Context, req resource.UpdateRequest,
 
 	// Update model with updated values
 	r.updateModelFromAPI(&plan, &readPolicy)
+	if err := r.readInvertTagMatch(ctx, policyUUID, &plan); err != nil {
+		resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to read policy after update, got error: %s", err))
+		return
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -373,6 +394,73 @@ func (r *PolicyResource) ImportState(ctx context.Context, req resource.ImportSta
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+}
+
+// policyUpdateBody holds the fields Dependency-Track's policy update endpoint
+// (POST /api/v1/policy) writes. Every field is sent explicitly, because the
+// server overwrites each of them from the request.
+type policyUpdateBody struct {
+	UUID                     string `json:"uuid"`
+	Name                     string `json:"name"`
+	Operator                 string `json:"operator"`
+	ViolationState           string `json:"violationState"`
+	IncludeChildren          bool   `json:"includeChildren"`
+	OnlyLatestProjectVersion bool   `json:"onlyLatestProjectVersion"`
+	InvertTagMatch           bool   `json:"invertTagMatch"`
+}
+
+// updatePolicy updates the managed policy attributes from data while keeping
+// the server's current values for the fields this resource does not manage
+// (includeChildren, onlyLatestProjectVersion, and invertTagMatch before 5.2).
+func (r *PolicyResource) updatePolicy(ctx context.Context, policyUUID uuid.UUID, data *PolicyResourceModel) error {
+	var body policyUpdateBody
+	if err := r.data.API().Do(ctx, http.MethodGet, "/api/v1/policy/"+policyUUID.String(), nil, &body); err != nil {
+		return fmt.Errorf("read current policy: %w", err)
+	}
+
+	body.UUID = policyUUID.String()
+	body.Name = data.Name.ValueString()
+	body.Operator = data.Operator.ValueString()
+	body.ViolationState = data.ViolationState.ValueString()
+	if r.data.ServerVersion.AtLeast(5, 2) {
+		body.InvertTagMatch = data.InvertTagMatch.ValueBool()
+	}
+
+	return r.data.API().Do(ctx, http.MethodPost, "/api/v1/policy", body, nil)
+}
+
+// readPolicyInvertTagMatch returns a policy's invertTagMatch flag. client-go's
+// Policy has no such field, so it is read with a raw request on 5.2+; older
+// servers have no inverted tag matching and always report false.
+func readPolicyInvertTagMatch(ctx context.Context, data *Data, policyUUID uuid.UUID) (types.Bool, error) {
+	if !data.ServerVersion.AtLeast(5, 2) {
+		return types.BoolValue(false), nil
+	}
+
+	var body policyUpdateBody
+	if err := data.API().Do(ctx, http.MethodGet, "/api/v1/policy/"+policyUUID.String(), nil, &body); err != nil {
+		return types.BoolNull(), err
+	}
+	return types.BoolValue(body.InvertTagMatch), nil
+}
+
+// readInvertTagMatch sets data.InvertTagMatch from the server.
+func (r *PolicyResource) readInvertTagMatch(ctx context.Context, policyUUID uuid.UUID, data *PolicyResourceModel) error {
+	v, err := readPolicyInvertTagMatch(ctx, r.data, policyUUID)
+	if err != nil {
+		return err
+	}
+	data.InvertTagMatch = v
+	return nil
+}
+
+// checkInvertTagMatchSupported rejects invert_tag_match = true on servers
+// older than Dependency-Track 5.2, which have no inverted tag matching.
+func (r *PolicyResource) checkInvertTagMatchSupported(data *PolicyResourceModel, diags *diag.Diagnostics) bool {
+	if !data.InvertTagMatch.ValueBool() {
+		return true
+	}
+	return requireAtLeast(r.data, 5, 2, "Setting invert_tag_match", diags)
 }
 
 // Helper method to update model from client library Policy struct.

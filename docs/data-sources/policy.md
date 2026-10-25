@@ -31,6 +31,7 @@ data "dependencytrack_policy" "example" {
 - `conditions` (Attributes List) List of policy conditions (see [below for nested schema](#nestedatt--conditions))
 - `global` (Boolean) Whether this is a global policy
 - `include_children` (Boolean) Whether the policy applies to child projects
+- `invert_tag_match` (Boolean) Whether the policy's tag scope is inverted, so that it applies to projects that do not have any of the policy's tags. Always `false` on Dependency-Track versions before 5.2
 - `name` (String) The name of the policy
 - `operator` (String) The operator used when evaluating conditions (ALL or ANY)
 - `uuid` (String) The UUID of the policy

@@ -43,6 +43,7 @@ resource "dependencytrack_policy" "example" {
 ### Optional
 
 - `conditions` (Attributes List) List of policy conditions that must be met (see [below for nested schema](#nestedatt--conditions))
+- `invert_tag_match` (Boolean) Whether the policy's tag scope is inverted, so that it applies to projects that do **not** have any of the policy's tags. Requires Dependency-Track 5.2 or newer; on older servers it can only be `false`. Default: `false`
 - `operator` (String) The operator to use when evaluating conditions (ALL or ANY). Default: ALL
 - `violation_state` (String) The violation state (INFO, WARN, or FAIL). Default: INFO
 

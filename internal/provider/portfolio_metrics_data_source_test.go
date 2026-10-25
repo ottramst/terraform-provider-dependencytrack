@@ -10,6 +10,12 @@ import (
 )
 
 func TestAccPortfolioMetricsDataSource(t *testing.T) {
+	// kev exists from Dependency-Track 5.1; older servers report null.
+	var kevCheck knownvalue.Check = knownvalue.Null()
+	if testAccServerVersion(t).AtLeast(5, 1) {
+		kevCheck = knownvalue.NotNull()
+	}
+
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { testAccPreCheckAPIKey(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -28,6 +34,11 @@ func TestAccPortfolioMetricsDataSource(t *testing.T) {
 						"data.dependencytrack_portfolio_metrics.test",
 						tfjsonpath.New("projects"),
 						knownvalue.NotNull(),
+					),
+					statecheck.ExpectKnownValue(
+						"data.dependencytrack_portfolio_metrics.test",
+						tfjsonpath.New("kev"),
+						kevCheck,
 					),
 					statecheck.ExpectKnownValue(
 						"data.dependencytrack_portfolio_metrics.test",

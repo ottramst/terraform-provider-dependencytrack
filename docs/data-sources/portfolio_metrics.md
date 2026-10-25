@@ -35,6 +35,7 @@ output "portfolio_risk_score" {
 - `high` (Number) Number of high severity vulnerabilities
 - `id` (String) Identifier of this data source result (always `portfolio_metrics`).
 - `inherited_risk_score` (Number) The inherited risk score of the portfolio
+- `kev` (Number) Number of findings whose vulnerability is listed in CISA's Known Exploited Vulnerabilities (KEV) catalog. Requires Dependency-Track 5.1 or newer; null on older servers
 - `last_occurrence` (Number) Timestamp (epoch milliseconds) when this metrics snapshot was last confirmed
 - `low` (Number) Number of low severity vulnerabilities
 - `medium` (Number) Number of medium severity vulnerabilities

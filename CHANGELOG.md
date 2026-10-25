@@ -19,6 +19,8 @@ BUG FIXES:
 
 NOTES:
 
+* project: Added `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, issue forms and a project-specific pull request template, and replaced the inherited HashiCorp code of conduct with the Contributor Covenant 2.1
+* ci: All actions are pinned to commit SHAs with least-privilege `permissions`, job timeouts and concurrency groups. CI also runs on pushes to `main`, adds a `go mod tidy` check, unit tests, and a single `CI gate` status check. New workflows: CodeQL, govulncheck and dependency review, OpenSSF Scorecard, and workflow linting (actionlint, zizmor). Releases now publish build provenance attestations
 * provider: The server version is now detected before authenticating, so an unreachable endpoint is reported before any login error
 * resource/dependencytrack_notification_rule: Documented the v5 webhook `publisher_config` keys, including `publishProtobuf` (5.1+) and `signingSecret` (5.2+, references a `dependencytrack_secret` by name)
 

@@ -1,5 +1,10 @@
 # Terraform Provider for OWASP Dependency-Track
 
+[![CI/CD](https://github.com/ottramst/terraform-provider-dependencytrack/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/ottramst/terraform-provider-dependencytrack/actions/workflows/main.yml)
+[![CodeQL](https://github.com/ottramst/terraform-provider-dependencytrack/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/ottramst/terraform-provider-dependencytrack/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ottramst/terraform-provider-dependencytrack/badge)](https://scorecard.dev/viewer/?uri=github.com/ottramst/terraform-provider-dependencytrack)
+[![Terraform Registry](https://img.shields.io/badge/terraform-registry-623CE4)](https://registry.terraform.io/providers/ottramst/dependencytrack/latest)
+
 This [Terraform](https://www.terraform.io) provider is built using the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework) and allows you to manage [OWASP Dependency-Track](https://dependencytrack.org/) resources.
 
 This provider includes:
@@ -121,3 +126,7 @@ make testacc
 ```
 
 *Note:* Acceptance tests create real resources in your Dependency-Track instance. Make sure to use a test instance and not a production environment.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and how to run the acceptance tests, [SUPPORT.md](SUPPORT.md) for getting help, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.

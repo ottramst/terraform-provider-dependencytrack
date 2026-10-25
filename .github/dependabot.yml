@@ -1,30 +1,62 @@
 # See GitHub's documentation for more information on this file:
-# https://docs.github.com/en/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/configuration-options-for-dependency-updates
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# Dependency-Track itself is not updated here: the acceptance test matrix in
+# .github/workflows/test.yml and the DT_VERSION defaults in docker-compose*.yml
+# are bumped together by hand (see CONTRIBUTING.md).
 version: 2
 updates:
-  # Maintain dependencies for Go modules
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      # Check for updates to Go modules every weekday
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
     groups:
-      # Group all terraform-plugin-(go|sdk|framework|testing) dependencies together
+      # Group all terraform-plugin-(go|framework|testing|...) dependencies together
       "terraform-plugin":
         patterns:
           - "github.com/hashicorp/terraform-plugin-*"
+      "go-minor-patch":
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "gomod"
     directory: "/tools"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    groups:
+      "tools":
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
-    groups:
-      "github-actions":
-        patterns:
-          - "*" # Group all GitHub Actions dependencies together
     schedule:
       interval: "weekly"
       day: "monday"
       time: "09:00"
       timezone: "Etc/UTC"
+    cooldown:
+      default-days: 7
+    groups:
+      "github-actions":
+        patterns:
+          - "*" # Group all GitHub Actions dependencies together
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      default-days: 7
+    ignore:
+      # Bumped by hand together with the test matrix (see above).
+      - dependency-name: "dependencytrack/*"
+      - dependency-name: "ghcr.io/dependencytrack/*"
+      # Each compose file pins the PostgreSQL major its stack is tested with.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]

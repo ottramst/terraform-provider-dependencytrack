@@ -1,4 +1,4 @@
-## Unreleased
+## v0.7.0
 
 FEATURES:
 
@@ -15,19 +15,19 @@ FEATURES:
 
 BUG FIXES:
 
+* security: Updated `google.golang.org/grpc` from v1.79.3 to v1.84.0, fixing GO-2026-6443 and GO-2026-6348, which were reachable through the provider's plugin server
 * resource/dependencytrack_policy: Updating a policy no longer resets `includeChildren` and `onlyLatestProjectVersion` (and, on 5.2+, `invertTagMatch`) to `false` when they were set outside Terraform, for example in the UI. Dependency-Track's update endpoint overwrites these fields from the request, so the provider now sends back the server's current values for fields it does not manage
 
 NOTES:
 
+* Dependency-Track support policy: the provider now supports and tests only non-end-of-life Dependency-Track releases, currently 4.14.x (until upstream EOL in December 2026) and 5.2.x. EOL versions, including Dependency-Track 5.0 and 5.1, get best-effort support. See the README "Support policy" section
 * Terraform support policy: CI now tests only the non-end-of-life Terraform releases, currently 1.16 and 1.17 (previously 1.9, 1.12 and 1.15, all end-of-life). The provider still works with Terraform >= 1.0, but EOL Terraform versions get best-effort support
-* project: Added `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, issue forms and a project-specific pull request template, and replaced the inherited HashiCorp code of conduct with the Contributor Covenant 2.1
-* ci: All actions are pinned to commit SHAs with least-privilege `permissions`, job timeouts and concurrency groups. CI also runs on pushes to `main`, adds a `go mod tidy` check, unit tests, and a single `CI gate` status check. New workflows: CodeQL, govulncheck and dependency review, OpenSSF Scorecard, and workflow linting (actionlint, zizmor). Releases now publish build provenance attestations
 * provider: The server version is now detected before authenticating, so an unreachable endpoint is reported before any login error
 * resource/dependencytrack_notification_rule: Documented the v5 webhook `publisher_config` keys, including `publishProtobuf` (5.1+) and `signingSecret` (5.2+, references a `dependencytrack_secret` by name)
-
-* Dependency-Track support policy: the provider now supports and tests only non-end-of-life Dependency-Track releases, currently 4.14.x (until upstream EOL in December 2026) and 5.2.x. EOL versions, including Dependency-Track 5.0 and 5.1, get best-effort support. See the README "Support policy" section
-* tests: Acceptance tests now run against Dependency-Track 4.14.6 and 5.2.1 (previously 4.14.2 and 5.0.2). The compose stacks take the image tag from `DT_VERSION`
 * build: The provider now requires Go 1.27 to build from source (Go 1.25 is end-of-life). Dependencies were updated, and golangci-lint is pinned to v2.15.0 in CI
+* tests: Acceptance tests now run against Dependency-Track 4.14.6 and 5.2.1 (previously 4.14.2 and 5.0.2). The compose stacks take the image tag from `DT_VERSION`
+* ci: All actions are pinned to commit SHAs with least-privilege `permissions`, job timeouts and concurrency groups. CI also runs on pushes to `main`, adds a `go mod tidy` check, unit tests, and a single `CI gate` status check. New workflows: CodeQL, govulncheck and dependency review, OpenSSF Scorecard, and workflow linting (actionlint, zizmor). Releases now publish build provenance attestations
+* project: Added `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, issue forms and a project-specific pull request template, and replaced the inherited HashiCorp code of conduct with the Contributor Covenant 2.1
 
 ## v0.6.0
 
